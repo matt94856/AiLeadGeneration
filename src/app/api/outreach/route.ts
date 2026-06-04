@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getContainer } from "@/services/container";
 import { jsonOk, jsonError, handleApiError } from "@/lib/api-response";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { getRecruiterProfile } from "@/lib/recruiter-profile";
 import type { OutreachChannel } from "@/types";
 
 export async function POST(request: Request) {
@@ -38,7 +39,10 @@ export async function POST(request: Request) {
       subject: draft.subject,
       body: draft.body,
       created_by: user?.id,
-      personalization_context: { opportunityNotes: body.opportunityNotes },
+      personalization_context: {
+        opportunityNotes: body.opportunityNotes,
+        recruiter: getRecruiterProfile(),
+      },
     });
 
     await container.activities.create({

@@ -1,5 +1,10 @@
 import OpenAI from "openai";
 import { logger } from "@/lib/logger";
+import {
+  getRecruiterProfile,
+  formatRecruiterPromptBlock,
+  getOutreachPlaceholderRules,
+} from "@/lib/recruiter-profile";
 import type {
   OpenAIResearchInput,
   OpenAIResearchOutput,
@@ -73,13 +78,14 @@ Respond in JSON with keys: physician_summary (2-4 sentences), current_employer, 
     input: OutreachDraftInput
   ): Promise<{ subject?: string; body: string }> {
     const client = this.ensureClient();
+    const recruiter = getRecruiterProfile();
     const channelInstructions = {
       email:
-        "Write a professional email (subject + body). Under 200 words. CAN-SPAM compliant. No false claims.",
+        "Write a professional email (subject + body). Under 200 words. CAN-SPAM compliant. Include recruiter email and website in the signature.",
       linkedin:
-        "Write a concise LinkedIn connection/InMail message under 100 words. Professional, personalized.",
+        "Write a concise LinkedIn connection/InMail message under 100 words. Sign with the recruiter's first name.",
       voicemail:
-        "Write a 30-45 second voicemail script. Conversational but professional.",
+        "Write a 30-45 second voicemail script. State the recruiter's full name and callback phone number clearly.",
     };
 
     const completion = await client.chat.completions.create({
@@ -87,12 +93,15 @@ Respond in JSON with keys: physician_summary (2-4 sentences), current_employer, 
       messages: [
         {
           role: "system",
-          content:
-            "You draft recruiter outreach for cardiologist locum opportunities. Messages require human review before sending. Be compliant, respectful, and never pressure physicians.",
+          content: `You draft outreach for ${recruiter.fullName}, a ${recruiter.title} at ${recruiter.website}. Messages require human review before sending. Be compliant, respectful, and never pressure physicians.
+
+${getOutreachPlaceholderRules(recruiter)}`,
         },
         {
           role: "user",
           content: `${channelInstructions[input.channel]}
+
+${formatRecruiterPromptBlock(recruiter)}
 
 Physician: Dr. ${input.physician.first_name} ${input.physician.last_name}
 Specialty: ${input.physician.specialty}${input.physician.subspecialty ? ` (${input.physician.subspecialty})` : ""}
@@ -156,20 +165,21 @@ export class MockOpenAIService implements IOpenAIService {
   }
 
   async generateOutreachDraft(input: OutreachDraftInput) {
+    const r = getRecruiterProfile();
     const name = `Dr. ${input.physician.first_name} ${input.physician.last_name}`;
     if (input.channel === "email") {
       return {
         subject: `Locum cardiology opportunity — ${input.physician.state ?? "US"}`,
-        body: `Dear ${name},\n\nI hope this message finds you well. I'm reaching out regarding flexible locum tenens cardiology opportunities that may align with your practice in ${input.physician.city ?? "your area"}.\n\nI'd welcome a brief conversation at your convenience.\n\nBest regards,\n[Your Name]\n[Agency Name]`,
+        body: `Dear ${name},\n\nI hope this message finds you well. My name is ${r.fullName}, and I'm a ${r.title}. I'm reaching out regarding flexible locum tenens cardiology opportunities that may align with your practice in ${input.physician.city ?? "your area"}.\n\nI'd welcome a brief conversation at your convenience.\n\nBest regards,\n${r.fullName}\n${r.email}\n${r.phone}\n${r.website}`,
       };
     }
     if (input.channel === "linkedin") {
       return {
-        body: `Hi ${name}, I support cardiologists with locum opportunities in ${input.physician.state ?? "several states"}. Would you be open to connecting?`,
+        body: `Hi ${name}, I'm ${r.fullName} with Locum Career Hub (${r.website}). I help cardiologists find locum opportunities in ${input.physician.state ?? "several states"}. Would you be open to a brief connect?`,
       };
     }
     return {
-      body: `Hi ${name}, this is [Your Name] with [Agency]. I'm calling about locum cardiology coverage options in ${input.physician.state ?? "your region"}. Please call me back at [phone]. Thank you.`,
+      body: `Hi ${name}, this is ${r.fullName}. I'm a ${r.title} with Locum Career Hub. I'm calling about locum cardiology coverage in ${input.physician.state ?? "your region"}. Please call me back at ${r.phone}, or email ${r.email}. Thank you.`,
     };
   }
 
