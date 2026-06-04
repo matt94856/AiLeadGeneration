@@ -6,7 +6,9 @@ import { DashboardCharts } from "@/components/dashboard/charts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import type { DashboardMetrics } from "@/types";
+import type { DashboardMetrics, Physician } from "@/types";
+import { PhysicianTable } from "@/components/physicians/physician-table";
+import { startOfDay } from "date-fns";
 
 interface DashboardData {
   metrics: DashboardMetrics;
@@ -21,15 +23,21 @@ interface DashboardData {
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [todaysLeads, setTodaysLeads] = useState<Physician[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/dashboard")
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.success) setData(json.data);
-        setLoading(false);
-      });
+    const since = startOfDay(new Date()).toISOString();
+    Promise.all([
+      fetch("/api/dashboard").then((r) => r.json()),
+      fetch(`/api/physicians?discovered_since=${encodeURIComponent(since)}&limit=50`).then(
+        (r) => r.json()
+      ),
+    ]).then(([dashboardJson, leadsJson]) => {
+      if (dashboardJson.success) setData(dashboardJson.data);
+      if (leadsJson.success) setTodaysLeads(leadsJson.data.data);
+      setLoading(false);
+    });
   }, []);
 
   if (loading) return <p className="text-muted-foreground">Loading dashboard…</p>;
@@ -42,6 +50,22 @@ export default function DashboardPage() {
         <p className="text-muted-foreground text-sm">Pipeline health and top opportunities</p>
       </div>
       <MetricsCards metrics={data.metrics} />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>New leads today</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              From n8n / discovery runs — open a lead, generate email, then Approve &amp; Send
+            </p>
+          </div>
+          <Link href="/discovery" className="text-sm text-primary hover:underline">
+            Run discovery
+          </Link>
+        </CardHeader>
+        <CardContent>
+          <PhysicianTable physicians={todaysLeads} />
+        </CardContent>
+      </Card>
       <DashboardCharts metrics={data.metrics} />
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

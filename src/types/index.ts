@@ -140,6 +140,7 @@ export interface PhysicianFilters {
   organization?: string;
   status?: PhysicianStatus;
   keyword?: string;
+  discoveredSince?: string;
   page?: number;
   limit?: number;
 }

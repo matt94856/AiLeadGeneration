@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ActivityTimeline } from "@/components/physicians/activity-timeline";
 import { OutreachPanel } from "@/components/physicians/outreach-panel";
+import { PhysicianEmailField } from "@/components/physicians/physician-email-field";
 import type { Physician, Activity, OutreachDraft } from "@/types";
 
 export default function PhysicianDetailPage() {
@@ -53,9 +54,14 @@ export default function PhysicianDetailPage() {
     await load();
   }
 
-  async function approveDraft(draftId: string) {
-    await fetch(`/api/outreach/${draftId}/approve`, { method: "POST" });
+  async function approveAndSend(draftId: string): Promise<{ error?: string }> {
+    const res = await fetch(`/api/outreach/${draftId}/send`, { method: "POST" });
+    const json = await res.json();
     await load();
+    if (!json.success) {
+      return { error: json.error?.message ?? "Failed to send email" };
+    }
+    return {};
   }
 
   if (loading) return <p className="text-muted-foreground">Loading…</p>;
@@ -112,11 +118,17 @@ export default function PhysicianDetailPage() {
         </Card>
       </div>
 
-      <OutreachPanel
+      <PhysicianEmailField
         physicianId={id}
+        initialEmail={physician.email}
+        onSaved={load}
+      />
+
+      <OutreachPanel
+        physicianEmail={physician.email}
         drafts={drafts}
         onGenerate={generateOutreach}
-        onApprove={approveDraft}
+        onApproveAndSend={approveAndSend}
       />
     </div>
   );

@@ -45,6 +45,9 @@ export class PhysicianRepository {
         `first_name.ilike.${kw},last_name.ilike.${kw},organization.ilike.${kw},physician_summary.ilike.${kw}`
       );
     }
+    if (filters.discoveredSince) {
+      query = query.gte("created_at", filters.discoveredSince);
+    }
 
     query = query.order("lead_score", { ascending: false }).range(from, to);
 

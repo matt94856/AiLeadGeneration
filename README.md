@@ -113,6 +113,14 @@ See [.env.example](.env.example). All secrets are externalized — nothing is ha
 | `/api/follow-up/[id]` | POST | AI follow-up suggestion |
 | `/api/webhooks/n8n` | POST | Automation (header: `x-webhook-secret`) |
 
+### Daily discovery + one-click send
+
+See **[docs/N8N_SETUP.md](docs/N8N_SETUP.md)** for:
+
+- Importing `n8n/cardiolocums-daily-discovery.json`
+- Gmail App Password setup (`GMAIL_USER`, `GMAIL_APP_PASSWORD`)
+- End-of-day workflow: review leads → generate draft → **Approve & Send**
+
 ### n8n webhook example
 
 ```json

@@ -22,6 +22,7 @@ export async function GET(request: Request) {
       organization: searchParams.get("organization") ?? undefined,
       status: (searchParams.get("status") as PhysicianFilters["status"]) ?? undefined,
       keyword: searchParams.get("keyword") ?? undefined,
+      discoveredSince: searchParams.get("discovered_since") ?? undefined,
       minYears: searchParams.get("minYears") ? Number(searchParams.get("minYears")) : undefined,
       maxYears: searchParams.get("maxYears") ? Number(searchParams.get("maxYears")) : undefined,
       minScore: searchParams.get("minScore") ? Number(searchParams.get("minScore")) : undefined,
