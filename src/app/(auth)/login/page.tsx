@@ -28,6 +28,9 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
+
+    await fetch("/api/auth/ensure-profile", { method: "POST" });
+
     router.push(searchParams.get("redirect") ?? "/dashboard");
     router.refresh();
   }

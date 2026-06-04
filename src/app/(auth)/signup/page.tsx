@@ -9,29 +9,66 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
+function formatSignupError(message: string, status?: number): string {
+  if (status === 500 || message.toLowerCase().includes("database")) {
+    return `${message} — This usually means Supabase migrations were not applied. In Supabase Dashboard → SQL Editor, run the files in supabase/migrations/ (especially 20250605000001_initial_schema.sql and 20250605000001_fix_signup_profile.sql).`;
+  }
+  return message;
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setInfo(null);
+
     const supabase = createClient();
-    const { error: authError } = await supabase.auth.signUp({
+    const { data, error: authError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: `${window.location.origin}/login`,
+      },
     });
+
     if (authError) {
-      setError(authError.message);
+      const status = (authError as { status?: number }).status;
+      setError(formatSignupError(authError.message, status));
       setLoading(false);
       return;
     }
+
+    if (data.user && !data.session) {
+      setInfo(
+        "Check your email to confirm your account, then sign in. (If confirmation is disabled in Supabase, try signing in directly.)"
+      );
+      setLoading(false);
+      return;
+    }
+
+    const profileRes = await fetch("/api/auth/ensure-profile", { method: "POST" });
+    const profileJson = await profileRes.json();
+    if (!profileJson.success) {
+      setError(
+        formatSignupError(
+          profileJson.error?.message ??
+            "Account created but profile setup failed. Apply Supabase migrations and try again."
+        )
+      );
+      setLoading(false);
+      return;
+    }
+
     router.push("/dashboard");
     router.refresh();
   }
@@ -64,7 +101,14 @@ export default function SignupPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && (
+              <p className="text-sm text-destructive rounded-md border border-destructive/30 bg-destructive/5 p-3">
+                {error}
+              </p>
+            )}
+            {info && (
+              <p className="text-sm text-muted-foreground rounded-md border p-3 bg-muted/50">{info}</p>
+            )}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Creating…" : "Create account"}
             </Button>

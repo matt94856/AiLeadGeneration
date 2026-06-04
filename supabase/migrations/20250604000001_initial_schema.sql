@@ -214,23 +214,38 @@ CREATE TRIGGER outreach_drafts_updated_at
   BEFORE UPDATE ON outreach_drafts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- Auto-create profile on signup
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
+-- Auto-create profile on signup (see also 20250605000001_fix_signup_profile.sql)
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
-  INSERT INTO profiles (id, email, full_name)
+  INSERT INTO public.profiles (id, email, full_name)
   VALUES (
     NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1))
-  );
+    COALESCE(NEW.email, ''),
+    COALESCE(
+      NEW.raw_user_meta_data->>'full_name',
+      split_part(COALESCE(NEW.email, 'user'), '@', 1)
+    )
+  )
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE WARNING 'handle_new_user failed: %', SQLERRM;
+    RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+GRANT ALL ON TABLE public.profiles TO supabase_auth_admin;
 
 -- RLS
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
@@ -261,6 +276,10 @@ $$ LANGUAGE sql STABLE SECURITY DEFINER;
 -- Profiles policies
 CREATE POLICY profiles_select ON profiles FOR SELECT TO authenticated
   USING (id = auth.uid() OR is_admin());
+CREATE POLICY profiles_insert_own ON profiles FOR INSERT TO authenticated
+  WITH CHECK (id = auth.uid());
+CREATE POLICY profiles_insert_service ON profiles FOR INSERT TO service_role
+  WITH CHECK (true);
 CREATE POLICY profiles_update ON profiles FOR UPDATE TO authenticated
   USING (id = auth.uid());
 

@@ -57,6 +57,8 @@ npx supabase db push
 
 5. Enable Email auth in Supabase Dashboard → Authentication.
 
+   **If signup returns 500:** open Supabase → **Logs** → Postgres, then run **both** migration files in SQL Editor. Also run `20250605000001_fix_signup_profile.sql`. Optionally disable **Confirm email** under Authentication → Providers → Email while testing.
+
 6. Promote first admin (after signup):
 
 ```sql
