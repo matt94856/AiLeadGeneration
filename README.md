@@ -57,7 +57,9 @@ npx supabase db push
 
 5. Enable Email auth in Supabase Dashboard → Authentication.
 
-   **If signup returns 500:** open Supabase → **Logs** → Postgres, then run **both** migration files in SQL Editor. Also run `20250605000001_fix_signup_profile.sql`. Optionally disable **Confirm email** under Authentication → Providers → Email while testing.
+   **If signup returns 500:** open Supabase → **Logs** → Postgres, then run **both** migration files in SQL Editor. Also run `20250605000001_fix_signup_profile.sql`.
+
+   **Email confirmation:** Add redirect URL `https://your-app.vercel.app/auth/callback**` (and `http://localhost:3000/auth/callback**` for local). Confirmation links use `/auth/callback`, not `/login`. If emails never arrive: check spam, Supabase → Authentication → Logs, or disable **Confirm email** while testing. You can manually confirm a user in Authentication → Users.
 
 6. Promote first admin (after signup):
 

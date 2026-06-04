@@ -37,7 +37,7 @@ export default function SignupPage() {
       password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/login`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
       },
     });
 
@@ -50,7 +50,7 @@ export default function SignupPage() {
 
     if (data.user && !data.session) {
       setInfo(
-        "Check your email to confirm your account, then sign in. (If confirmation is disabled in Supabase, try signing in directly.)"
+        "Account created. Check your email (and spam) for a confirmation link. Supabase may limit emails on the free tier. You can also disable “Confirm email” in Supabase → Authentication → Providers → Email, then sign in directly."
       );
       setLoading(false);
       return;
