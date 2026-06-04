@@ -39,6 +39,7 @@ For local dev, add the same to `.env.local` (never commit this file).
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | service role key |
 | `OPENAI_API_KEY` | for AI drafts |
+| `SERPER_API_KEY` | free at [serper.dev](https://serper.dev) — **recommended** for finding public emails |
 | `WEBHOOK_SECRET` | long random string (same as n8n) |
 | `RECRUITER_*` | optional — defaults to Matthew Fuller |
 
@@ -97,6 +98,19 @@ curl -X POST "https://ai-lead-generation-pink.vercel.app/api/webhooks/n8n" \
 
 Check **Dashboard → New leads today** after a successful run.
 
+### Optional: auto-find emails after discovery
+
+Add a second **HTTP Request** node after discovery (or run manually from Dashboard):
+
+```json
+{
+  "event": "enrichment.emails",
+  "data": { "today_only": true, "limit": 25 }
+}
+```
+
+Same URL and `x-webhook-secret` header as discovery.
+
 ---
 
 ## Part 4 — Your daily click workflow
@@ -104,9 +118,10 @@ Check **Dashboard → New leads today** after a successful run.
 | Step | Where | Action |
 |------|--------|--------|
 | 1 | Dashboard | Review **New leads today** |
-| 2 | Physician profile | **Save email** (public data often has no email — add manually) |
-| 3 | Outreach | **Generate email** draft |
-| 4 | Outreach | Review text → **Approve & Send** |
+| 2 | Dashboard | Click **AI find emails** (uses OpenAI + optional Serper web search) |
+| 3 | Physician profile | Verify **AI found** email or edit manually |
+| 4 | Outreach | **Generate email** draft |
+| 5 | Outreach | Review text → **Approve & Send** |
 
 Email sends from **GMAIL_USER** via Gmail SMTP. Activity is logged on the physician timeline; status moves to **Contacted** when applicable.
 
@@ -116,7 +131,8 @@ Email sends from **GMAIL_USER** via Gmail SMTP. Activity is logged on the physic
 
 - Does **not** auto-send emails (you click **Approve & Send**).
 - Does **not** auto-generate drafts (you click **Generate email**).
-- Does **not** find personal emails for most physicians (NPI/CMS are professional listings).
+- Does **not** find personal emails for most physicians without **SERPER_API_KEY** + public listings
+- AI **never guesses** emails — only extracts from public web/hospital pages when found.
 
 ---
 

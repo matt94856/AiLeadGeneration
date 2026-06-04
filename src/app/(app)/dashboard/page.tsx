@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import type { DashboardMetrics, Physician } from "@/types";
 import { PhysicianTable } from "@/components/physicians/physician-table";
+import { Button } from "@/components/ui/button";
 import { startOfDay } from "date-fns";
 
 interface DashboardData {
@@ -25,6 +26,17 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [todaysLeads, setTodaysLeads] = useState<Physician[]>([]);
   const [loading, setLoading] = useState(true);
+  const [enriching, setEnriching] = useState(false);
+  const [enrichMessage, setEnrichMessage] = useState<string | null>(null);
+
+  function reloadLeads() {
+    const since = startOfDay(new Date()).toISOString();
+    return fetch(`/api/physicians?discovered_since=${encodeURIComponent(since)}&limit=50`)
+      .then((r) => r.json())
+      .then((leadsJson) => {
+        if (leadsJson.success) setTodaysLeads(leadsJson.data.data);
+      });
+  }
 
   useEffect(() => {
     const since = startOfDay(new Date()).toISOString();
@@ -39,6 +51,26 @@ export default function DashboardPage() {
       setLoading(false);
     });
   }, []);
+
+  async function findEmailsWithAi() {
+    setEnriching(true);
+    setEnrichMessage(null);
+    const res = await fetch("/api/enrichment/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ today_only: true, limit: 25 }),
+    });
+    const json = await res.json();
+    setEnriching(false);
+    if (json.success) {
+      setEnrichMessage(
+        `Found ${json.data.found} emails (${json.data.not_found} not found). ${json.data.hint ?? "Review AI-suggested emails before sending."}`
+      );
+      await reloadLeads();
+    } else {
+      setEnrichMessage(json.error?.message ?? "Email enrichment failed");
+    }
+  }
 
   if (loading) return <p className="text-muted-foreground">Loading dashboard…</p>;
   if (!data) return <p className="text-destructive">Failed to load dashboard.</p>;
@@ -55,14 +87,24 @@ export default function DashboardPage() {
           <div>
             <CardTitle>New leads today</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              From n8n / discovery runs — open a lead, generate email, then Approve &amp; Send
+              From n8n / discovery — use AI to find public emails, then generate &amp; send outreach
             </p>
           </div>
-          <Link href="/discovery" className="text-sm text-primary hover:underline">
-            Run discovery
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button size="sm" variant="secondary" onClick={findEmailsWithAi} disabled={enriching}>
+              {enriching ? "Searching…" : "AI find emails"}
+            </Button>
+            <Link href="/discovery" className="text-sm text-primary hover:underline self-center">
+              Run discovery
+            </Link>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {enrichMessage && (
+            <p className="text-sm text-muted-foreground rounded-md border p-2 bg-muted/40">
+              {enrichMessage}
+            </p>
+          )}
           <PhysicianTable physicians={todaysLeads} />
         </CardContent>
       </Card>

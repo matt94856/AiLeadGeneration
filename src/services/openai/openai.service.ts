@@ -10,6 +10,10 @@ import type {
   OpenAIResearchOutput,
   OutreachDraftInput,
 } from "@/services/types";
+import type {
+  EmailExtractionInput,
+  EmailExtractionOutput,
+} from "@/services/enrichment/types";
 
 export interface IOpenAIService {
   researchPhysician(input: OpenAIResearchInput): Promise<OpenAIResearchOutput>;
@@ -22,6 +26,7 @@ export interface IOpenAIService {
     reasoning: string;
     suggested_action_date?: string;
   }>;
+  extractProfessionalEmail(input: EmailExtractionInput): Promise<EmailExtractionOutput>;
 }
 
 export class OpenAIService implements IOpenAIService {
@@ -147,6 +152,61 @@ Return JSON: { "subject": "...", "body": "..." } (subject optional for non-email
       suggested_action_date?: string;
     };
   }
+
+  async extractProfessionalEmail(
+    input: EmailExtractionInput
+  ): Promise<EmailExtractionOutput> {
+    const client = this.ensureClient();
+
+    const snippetsBlock =
+      input.searchSnippets.length > 0
+        ? input.searchSnippets.join("\n---\n")
+        : "No web search results available. Return confidence none unless email explicitly appears in physician website field.";
+
+    const completion = await client.chat.completions.create({
+      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You extract ONLY publicly listed professional/work email addresses for physicians from search snippets.
+
+STRICT RULES:
+- NEVER invent or guess emails (no firstname.lastname@domain pattern guessing).
+- Only return an email if it literally appears in the snippets or website field, or is clearly listed on an official hospital/practice page in the snippets.
+- Prefer hospital, clinic, or academic emails over personal Gmail/Yahoo unless that is their only listed professional contact.
+- If uncertain, return email null and confidence "none".
+- Return JSON: { "email": string|null, "confidence": "high"|"medium"|"low"|"none", "source_url": string|null, "evidence": string|null }`,
+        },
+        {
+          role: "user",
+          content: `Physician: Dr. ${input.first_name} ${input.last_name}
+Specialty: ${input.specialty}
+Organization: ${input.organization ?? "Unknown"}
+Location: ${input.city ?? ""}, ${input.state ?? ""}
+NPI: ${input.npi ?? "N/A"}
+Website: ${input.website ?? "N/A"}
+
+Public search snippets:
+${snippetsBlock}`,
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (!content) {
+      return { email: null, confidence: "none", source_url: null, evidence: null };
+    }
+
+    const parsed = JSON.parse(content) as EmailExtractionOutput;
+    logger.info("Email extraction completed", {
+      physician: `${input.first_name} ${input.last_name}`,
+      found: Boolean(parsed.email),
+      confidence: parsed.confidence,
+    });
+    return parsed;
+  }
 }
 
 /** Offline fallback when OpenAI is not configured */
@@ -188,6 +248,23 @@ export class MockOpenAIService implements IOpenAIService {
       recommendation: "Review profile and schedule qualification call",
       priority: "medium" as const,
       reasoning: "AI recommendations require OPENAI_API_KEY",
+    };
+  }
+
+  async extractProfessionalEmail(input: EmailExtractionInput): Promise<EmailExtractionOutput> {
+    if (input.website?.includes("@")) {
+      return {
+        email: input.website,
+        confidence: "medium",
+        source_url: input.website,
+        evidence: "From physician website field",
+      };
+    }
+    return {
+      email: null,
+      confidence: "none",
+      source_url: null,
+      evidence: "Configure OPENAI_API_KEY and SERPER_API_KEY for AI email discovery",
     };
   }
 }

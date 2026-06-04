@@ -11,6 +11,7 @@ import { getContainer } from "@/services/container";
  * - discovery.run { source?, state? }
  * - research.run { physician_id }
  * - physician.status { physician_id, status }
+ * - enrichment.emails { limit?, today_only? }
  */
 export async function POST(request: Request) {
   try {
@@ -58,6 +59,14 @@ export async function POST(request: Request) {
           String(payload.data?.physician_id),
           payload.data?.status as never
         );
+        break;
+      }
+      case "enrichment.emails": {
+        const data = payload.data ?? {};
+        result = await container.emailEnrichment.enrichBatch({
+          limit: data.limit ? Number(data.limit) : 25,
+          discoveredSince: data.today_only ? new Date().toISOString().slice(0, 10) + "T00:00:00.000Z" : undefined,
+        });
         break;
       }
       default:

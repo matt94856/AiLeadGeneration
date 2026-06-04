@@ -45,6 +45,15 @@ export default function PhysicianDetailPage() {
     await fetch(`/api/follow-up/${id}`, { method: "POST" });
   }
 
+  async function findEmailWithAi() {
+    const res = await fetch(`/api/enrichment/emails/${id}`, { method: "POST" });
+    const json = await res.json();
+    await load();
+    if (!json.success) {
+      alert(json.error?.message ?? "Could not find email");
+    }
+  }
+
   async function generateOutreach(channel: "email" | "linkedin" | "voicemail") {
     await fetch("/api/outreach", {
       method: "POST",
@@ -88,6 +97,9 @@ export default function PhysicianDetailPage() {
 
       <div className="flex flex-wrap gap-2">
         <Button onClick={runResearch}>Run AI Research</Button>
+        <Button variant="outline" onClick={findEmailWithAi}>
+          AI find email
+        </Button>
         <Button variant="outline" onClick={generateFollowUp}>
           Generate Follow-up
         </Button>

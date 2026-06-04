@@ -18,6 +18,8 @@ import { OutreachRepository } from "@/repositories/outreach.repository";
 import { PhysicianRepository } from "@/repositories/physician.repository";
 import { ScoringRepository } from "@/repositories/scoring.repository";
 import { ResearchService } from "@/services/research/research.service";
+import { SerperService } from "@/services/serper/serper.service";
+import { EmailEnrichmentService } from "@/services/enrichment/email-enrichment.service";
 
 export interface ServiceContainer {
   physicians: PhysicianRepository;
@@ -27,6 +29,7 @@ export interface ServiceContainer {
   dashboard: DashboardRepository;
   discovery: DiscoveryService;
   research: ResearchService;
+  emailEnrichment: EmailEnrichmentService;
   openai: IOpenAIService;
   npi: NpiService;
   cms: CmsService;
@@ -54,6 +57,7 @@ export function createContainer(supabase: SupabaseClient): ServiceContainer {
   const activities = new ActivityRepository(supabase);
   const outreach = new OutreachRepository(supabase);
   const dashboard = new DashboardRepository(supabase);
+  const serper = new SerperService();
 
   return {
     physicians,
@@ -63,6 +67,7 @@ export function createContainer(supabase: SupabaseClient): ServiceContainer {
     dashboard,
     discovery: new DiscoveryService(adapters, physicians, scoring),
     research: new ResearchService(physicians, scoring, openai),
+    emailEnrichment: new EmailEnrichmentService(physicians, openai, serper),
     openai,
     npi,
     cms,

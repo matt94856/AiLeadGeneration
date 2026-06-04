@@ -158,4 +158,21 @@ export class PhysicianRepository {
     if (error) throw new Error(error.message);
     return data;
   }
+
+  async listMissingEmail(limit = 25, discoveredSince?: string): Promise<Physician[]> {
+    let query = this.supabase
+      .from("physicians")
+      .select("*")
+      .or("email.is.null,email.eq.")
+      .order("lead_score", { ascending: false })
+      .limit(limit);
+
+    if (discoveredSince) {
+      query = query.gte("created_at", discoveredSince);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Physician[];
+  }
 }
