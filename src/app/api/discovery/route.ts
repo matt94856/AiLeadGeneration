@@ -1,0 +1,80 @@
+import { createClient } from "@/lib/supabase/server";
+import { getContainer } from "@/services/container";
+import { jsonOk, jsonError, handleApiError } from "@/lib/api-response";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
+
+export async function GET() {
+  const supabase = await createClient();
+  const container = getContainer(supabase);
+  return jsonOk({ sources: container.discovery.listSources() });
+}
+
+export async function POST(request: Request) {
+  try {
+    const ip = getClientIp(request);
+    const limit = rateLimit(`discovery:${ip}`, 10, 60_000);
+    if (!limit.success) return jsonError("Rate limit exceeded", 429);
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return jsonError("Unauthorized", 401);
+
+    const body = (await request.json()) as {
+      source?: string;
+      state?: string;
+      city?: string;
+      runAll?: boolean;
+    };
+
+    const container = getContainer(supabase);
+    const params: Record<string, string> = {};
+    if (body.state) params.state = body.state;
+    if (body.city) params.city = body.city;
+
+    const { data: run } = await supabase
+      .from("discovery_runs")
+      .insert({
+        source: body.source ?? "all",
+        status: "running",
+        started_by: user.id,
+      })
+      .select()
+      .single();
+
+    let results;
+    if (body.runAll || !body.source) {
+      results = await container.discovery.runAllSources(params);
+    } else {
+      results = [await container.discovery.runDiscovery(body.source, params)];
+    }
+
+    const totals = results.reduce(
+      (acc, r) => ({
+        found: acc.found + r.found,
+        created: acc.created + r.created,
+        updated: acc.updated + r.updated,
+      }),
+      { found: 0, created: 0, updated: 0 }
+    );
+
+    if (run) {
+      await supabase
+        .from("discovery_runs")
+        .update({
+          status: "completed",
+          records_found: totals.found,
+          records_created: totals.created,
+          records_updated: totals.updated,
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", run.id);
+    }
+
+    logger.info("Discovery activity", { userId: user.id, totals, runId: run?.id });
+
+    return jsonOk({ results, totals });
+  } catch (error) {
+    return handleApiError(error, "POST /api/discovery");
+  }
+}

@@ -1,0 +1,71 @@
+import { createServiceClient } from "@/lib/supabase/server";
+import { jsonOk, jsonError, handleApiError } from "@/lib/api-response";
+import { logger } from "@/lib/logger";
+import { getContainer } from "@/services/container";
+
+/**
+ * n8n-compatible webhook endpoint.
+ * Authenticate with WEBHOOK_SECRET header: x-webhook-secret
+ *
+ * Supported events:
+ * - discovery.run { source?, state? }
+ * - research.run { physician_id }
+ * - physician.status { physician_id, status }
+ */
+export async function POST(request: Request) {
+  try {
+    const secret = request.headers.get("x-webhook-secret");
+    if (!secret || secret !== process.env.WEBHOOK_SECRET) {
+      return jsonError("Unauthorized", 401);
+    }
+
+    const payload = await request.json() as {
+      event: string;
+      data?: Record<string, unknown>;
+    };
+
+    const supabase = await createServiceClient();
+    await supabase.from("webhook_events").insert({
+      event_type: payload.event,
+      payload,
+    });
+
+    const container = getContainer(supabase);
+    let result: unknown = { acknowledged: true };
+
+    switch (payload.event) {
+      case "discovery.run": {
+        const data = payload.data ?? {};
+        if (data.source) {
+          result = await container.discovery.runDiscovery(
+            String(data.source),
+            { state: data.state ? String(data.state) : "" }
+          );
+        } else {
+          result = await container.discovery.runAllSources(
+            { state: data.state ? String(data.state) : "" }
+          );
+        }
+        break;
+      }
+      case "research.run": {
+        const physicianId = String(payload.data?.physician_id ?? "");
+        result = await container.research.researchPhysician(physicianId);
+        break;
+      }
+      case "physician.status": {
+        result = await container.physicians.updateStatus(
+          String(payload.data?.physician_id),
+          payload.data?.status as never
+        );
+        break;
+      }
+      default:
+        logger.warn("Unknown webhook event", { event: payload.event });
+    }
+
+    return jsonOk({ event: payload.event, result });
+  } catch (error) {
+    return handleApiError(error, "POST /api/webhooks/n8n");
+  }
+}
