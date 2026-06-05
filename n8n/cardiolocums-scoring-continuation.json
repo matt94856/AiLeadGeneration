@@ -1,5 +1,5 @@
 {
-  "name": "CardioLocums — Email Enrichment Continuation",
+  "name": "CardioLocums — Lead Scoring Continuation",
   "nodes": [
     {
       "parameters": {
@@ -18,7 +18,7 @@
       "typeVersion": 1.2,
       "position": [0, 0],
       "notesInFlow": true,
-      "notes": "Hobby Vercel cannot run cron more than once/day — n8n continues email enrichment instead."
+      "notes": "Scores unscored leads in chunks until all physicians have a lead_score."
     },
     {
       "parameters": {
@@ -40,18 +40,18 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"event\": \"enrichment.emails\",\n  \"data\": {\n    \"all_pending\": true,\n    \"limit\": 4\n  }\n}",
+        "jsonBody": "{\n  \"event\": \"research.batch\",\n  \"data\": {\n    \"all_pending\": true,\n    \"limit\": 8\n  }\n}",
         "options": {
           "timeout": 120000
         }
       },
-      "id": "http-email-chunk",
-      "name": "Process email chunk",
+      "id": "http-score-chunk",
+      "name": "Process scoring chunk",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [280, 0],
       "notesInFlow": true,
-      "notes": "Returns instantly; app processes 4 leads in background per call."
+      "notes": "Returns instantly; app scores up to 8 leads in background per call. Skips already-scored physicians."
     }
   ],
   "connections": {
@@ -59,7 +59,7 @@
       "main": [
         [
           {
-            "node": "Process email chunk",
+            "node": "Process scoring chunk",
             "type": "main",
             "index": 0
           }

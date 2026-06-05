@@ -77,7 +77,7 @@
       "typeVersion": 4.2,
       "position": [560, 0],
       "notesInFlow": true,
-      "notes": "Processes 12 per call; app auto-continues until all unscored physicians are done."
+      "notes": "Kicks off first scoring chunk; use cardiolocums-scoring-continuation.json for every-30-min follow-up."
     },
     {
       "parameters": {

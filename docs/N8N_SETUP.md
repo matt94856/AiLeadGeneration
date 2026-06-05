@@ -120,7 +120,14 @@ Scoring processes **12 physicians per background chunk**; email enrichment uses 
 
 n8n only needs **one** HTTP call per step. The response returns immediately with `status: "started"`; work continues in the background and auto-chains until `remaining` is 0.
 
-**Hobby Vercel plan:** built-in Vercel Cron only allows **once per day**, so frequent continuation uses **n8n** instead. Import `n8n/cardiolocums-email-continuation.json` — it calls the email webhook **every 30 minutes** until your database is processed. Self-HTTP continuation inside the app is disabled (`508 INFINITE_LOOP_DETECTED` on Vercel).
+**Hobby Vercel plan:** built-in Vercel Cron only allows **once per day**, so frequent continuation uses **n8n** instead. Import these optional workflows (activate both for full coverage):
+
+| File | Schedule | Purpose |
+|------|----------|---------|
+| `n8n/cardiolocums-scoring-continuation.json` | Every 30 min | AI-scores leads until all have `lead_score` |
+| `n8n/cardiolocums-email-continuation.json` | Every 30 min | Finds emails until all leads are attempted |
+
+Self-HTTP continuation inside the app is disabled (`508 INFINITE_LOOP_DETECTED` on Vercel).
 
 **Pro Vercel plan (optional):** you can add crons back to `vercel.json` and set `CRON_SECRET` instead of using the n8n continuation workflow.
 
