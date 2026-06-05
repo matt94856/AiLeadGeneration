@@ -100,7 +100,7 @@ Check **Dashboard → New leads today** after a successful run.
 
 ### AI score + email nodes (auto-continue)
 
-Each node processes **12 physicians per HTTP call**, then the app **automatically chains** more calls in the background until finished. Use `all_pending: true` to process your full database (not just today).
+Scoring processes **12 physicians per background chunk**; email enrichment uses **4 per chunk** (slower — web search + page fetch). n8n gets an immediate `status: "started"` response; the app **automatically chains** more calls until finished. Use `all_pending: true` to process your full database (not just today).
 
 **Score leads:**
 ```json
@@ -114,11 +114,11 @@ Each node processes **12 physicians per HTTP call**, then the app **automaticall
 ```json
 {
   "event": "enrichment.emails",
-  "data": { "all_pending": true, "limit": 12 }
+  "data": { "all_pending": true, "limit": 4 }
 }
 ```
 
-n8n only needs **one** HTTP call per step; the response includes `remaining` and `continuation_queued: true` while work continues.
+n8n only needs **one** HTTP call per step. The response returns immediately with `status: "started"`; work continues in the background and auto-chains until `remaining` is 0.
 
 Set **APP_URL** in Vercel (e.g. `https://ai-lead-generation-pink.vercel.app`) so auto-continuation can call back into your app.
 
@@ -164,6 +164,8 @@ Email sends from **GMAIL_USER** via Gmail SMTP. Activity is logged on the physic
 | No email on file | Add email on physician profile |
 | n8n 401 | `x-webhook-secret` must match Vercel `WEBHOOK_SECRET` |
 | n8n runs but no leads | Check Vercel function logs; try `state` with data (e.g. `FL`) |
+| **AI find emails → Gateway timed out** | Re-import workflow JSON (limit `4`, timeout `120000`). Ensure `APP_URL` is set on Vercel. Response is instant; work runs in background. |
+| `DEP0169 url.parse()` warning | Harmless Node.js deprecation from n8n or a dependency — safe to ignore. |
 | Gmail auth failed | Regenerate App Password; no spaces in env var |
 | Email in spam | Normal for cold outreach — warm up domain / use professional copy |
 

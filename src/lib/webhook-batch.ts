@@ -2,6 +2,7 @@ import type { ServiceContainer } from "@/services/container";
 import { scheduleWebhookContinuation } from "@/lib/webhook-continuation";
 import {
   resolveChunkLimit,
+  resolveEmailChunkLimit,
   resolveDiscoveredSince,
   type WebhookBatchData,
 } from "@/lib/batch-options";
@@ -18,7 +19,7 @@ export function buildResearchBatchPayload(data: WebhookBatchData): WebhookBatchD
 
 export function buildEmailBatchPayload(data: WebhookBatchData): WebhookBatchData {
   return {
-    limit: resolveChunkLimit(data),
+    limit: resolveEmailChunkLimit(data),
     today_only: data.today_only,
     all_pending: data.all_pending ?? !data.today_only,
     overwrite: data.overwrite,
@@ -51,7 +52,7 @@ export async function runEmailWebhookBatch(
 ) {
   const payload = buildEmailBatchPayload(data);
   const result = await container.emailEnrichment.enrichBatch({
-    limit: resolveChunkLimit(payload),
+    limit: resolveEmailChunkLimit(payload),
     discoveredSince: resolveDiscoveredSince(payload),
     overwrite: Boolean(payload.overwrite),
   });

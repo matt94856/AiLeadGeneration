@@ -1,4 +1,4 @@
-import { DEFAULT_BATCH_CHUNK } from "@/lib/batch-config";
+import { EMAIL_BATCH_CHUNK } from "@/lib/batch-config";
 import {
   extractEmailsFromText,
   rankOfficialUrls,
@@ -144,9 +144,9 @@ export class EmailEnrichmentService {
 
       const urlsToFetch = rankOfficialUrls(
         organic.map((r) => r.link),
-        3
+        2
       );
-      const fetchedPages = await fetchPages(urlsToFetch, 3);
+      const fetchedPages = await fetchPages(urlsToFetch, 2);
 
       const snippetBlocks = this.buildSnippetBlocks(organic, fetchedPages);
       const allText = [
@@ -258,7 +258,7 @@ export class EmailEnrichmentService {
   }
 
   async enrichBatch(options: EnrichBatchOptions = {}): Promise<EnrichBatchResult> {
-    const limit = options.limit ?? DEFAULT_BATCH_CHUNK;
+    const limit = options.limit ?? EMAIL_BATCH_CHUNK;
     let targets: Physician[];
 
     if (options.physicianIds?.length) {
@@ -287,7 +287,7 @@ export class EmailEnrichmentService {
       else if (result.status === "skipped_has_email") skipped++;
       else if (result.status === "error") errors++;
 
-      await sleep(600);
+      await sleep(350);
     }
 
     logger.info("Email enrichment batch complete", {

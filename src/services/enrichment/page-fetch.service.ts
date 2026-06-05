@@ -7,7 +7,7 @@ export interface FetchedPage {
 }
 
 const MAX_PAGE_CHARS = 12_000;
-const FETCH_TIMEOUT_MS = 8_000;
+const FETCH_TIMEOUT_MS = 5_000;
 
 export async function fetchPageText(url: string): Promise<FetchedPage | null> {
   if (!isFetchableUrl(url)) return null;

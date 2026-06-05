@@ -1,4 +1,4 @@
-import { DEFAULT_BATCH_CHUNK } from "@/lib/batch-config";
+import { DEFAULT_BATCH_CHUNK, EMAIL_BATCH_CHUNK } from "@/lib/batch-config";
 
 export interface WebhookBatchData extends Record<string, unknown> {
   limit?: number | string;
@@ -28,4 +28,9 @@ export function resolveDiscoveredSince(data: WebhookBatchData): string | undefin
 export function resolveChunkLimit(data: WebhookBatchData): number {
   const n = data.limit != null ? Number(data.limit) : DEFAULT_BATCH_CHUNK;
   return Number.isFinite(n) && n > 0 ? Math.min(n, 25) : DEFAULT_BATCH_CHUNK;
+}
+
+export function resolveEmailChunkLimit(data: WebhookBatchData): number {
+  const n = data.limit != null ? Number(data.limit) : EMAIL_BATCH_CHUNK;
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 8) : EMAIL_BATCH_CHUNK;
 }

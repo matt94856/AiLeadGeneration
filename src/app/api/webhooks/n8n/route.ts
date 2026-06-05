@@ -3,8 +3,14 @@ import { jsonOk, jsonError, handleApiError } from "@/lib/api-response";
 import { logger } from "@/lib/logger";
 import { getContainer, resetContainer } from "@/services/container";
 import { runAutoScoringAfterDiscovery, collectCreatedPhysicianIds } from "@/services/discovery/auto-scoring";
-import { runResearchWebhookBatch, runEmailWebhookBatch } from "@/lib/webhook-batch";
+import {
+  buildEmailBatchPayload,
+  buildResearchBatchPayload,
+  runResearchWebhookBatch,
+  runEmailWebhookBatch,
+} from "@/lib/webhook-batch";
 import type { WebhookBatchData } from "@/lib/batch-options";
+import { resolveChunkLimit, resolveEmailChunkLimit } from "@/lib/batch-options";
 import { after } from "next/server";
 
 export const maxDuration = 60;
@@ -89,7 +95,25 @@ export async function POST(request: Request) {
         break;
       }
       case "research.batch": {
-        result = await runResearchWebhookBatch(container, data);
+        const payload = buildResearchBatchPayload(data);
+        after(async () => {
+          try {
+            resetContainer();
+            const bgSupabase = await createServiceClient();
+            const bgContainer = getContainer(bgSupabase);
+            await runResearchWebhookBatch(bgContainer, data);
+          } catch (error) {
+            logger.error("Background research batch failed", {
+              error: error instanceof Error ? error.message : "unknown",
+            });
+          }
+        });
+        result = {
+          status: "started",
+          chunk_limit: resolveChunkLimit(payload),
+          continuation: "auto",
+          message: "Scoring runs in background; auto-continues until complete.",
+        };
         break;
       }
       case "research.run": {
@@ -105,7 +129,25 @@ export async function POST(request: Request) {
         break;
       }
       case "enrichment.emails": {
-        result = await runEmailWebhookBatch(container, data);
+        const payload = buildEmailBatchPayload(data);
+        after(async () => {
+          try {
+            resetContainer();
+            const bgSupabase = await createServiceClient();
+            const bgContainer = getContainer(bgSupabase);
+            await runEmailWebhookBatch(bgContainer, data);
+          } catch (error) {
+            logger.error("Background email enrichment failed", {
+              error: error instanceof Error ? error.message : "unknown",
+            });
+          }
+        });
+        result = {
+          status: "started",
+          chunk_limit: resolveEmailChunkLimit(payload),
+          continuation: "auto",
+          message: "Email enrichment runs in background; auto-continues until complete.",
+        };
         break;
       }
       default:

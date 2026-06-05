@@ -46,9 +46,10 @@ export class SerperService implements ISerperService {
   async searchMany(queries: string[]): Promise<SerperOrganicResult[]> {
     const seen = new Set<string>();
     const merged: SerperOrganicResult[] = [];
+    const uniqueQueries = [...new Set(queries)].slice(0, 4);
 
-    for (const query of queries) {
-      const result = await this.search(query);
+    const results = await Promise.all(uniqueQueries.map((query) => this.search(query)));
+    for (const result of results) {
       for (const row of result.organic) {
         if (seen.has(row.link)) continue;
         seen.add(row.link);
