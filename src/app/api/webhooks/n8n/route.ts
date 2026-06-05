@@ -6,8 +6,8 @@ import { runAutoScoringAfterDiscovery, collectCreatedPhysicianIds } from "@/serv
 import {
   buildEmailBatchPayload,
   buildResearchBatchPayload,
-  runResearchWebhookBatch,
-  runEmailWebhookBatch,
+  runResearchWebhookBatchSingle,
+  runEmailWebhookBatchSingle,
 } from "@/lib/webhook-batch";
 import type { WebhookBatchData } from "@/lib/batch-options";
 import { resolveChunkLimit, resolveEmailChunkLimit } from "@/lib/batch-options";
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
             resetContainer();
             const bgSupabase = await createServiceClient();
             const bgContainer = getContainer(bgSupabase);
-            await runResearchWebhookBatch(bgContainer, data);
+            await runResearchWebhookBatchSingle(bgContainer, data);
           } catch (error) {
             logger.error("Background research batch failed", {
               error: error instanceof Error ? error.message : "unknown",
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
             resetContainer();
             const bgSupabase = await createServiceClient();
             const bgContainer = getContainer(bgSupabase);
-            const batchResult = await runEmailWebhookBatch(bgContainer, data);
+            const batchResult = await runEmailWebhookBatchSingle(bgContainer, data);
             logger.info("Background email enrichment chunk finished", {
               processed: batchResult.processed,
               remaining: batchResult.remaining,
