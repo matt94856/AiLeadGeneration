@@ -135,7 +135,12 @@ export async function POST(request: Request) {
             resetContainer();
             const bgSupabase = await createServiceClient();
             const bgContainer = getContainer(bgSupabase);
-            await runEmailWebhookBatch(bgContainer, data);
+            const batchResult = await runEmailWebhookBatch(bgContainer, data);
+            logger.info("Background email enrichment chunk finished", {
+              processed: batchResult.processed,
+              remaining: batchResult.remaining,
+              continuation_queued: batchResult.continuation_queued,
+            });
           } catch (error) {
             logger.error("Background email enrichment failed", {
               error: error instanceof Error ? error.message : "unknown",

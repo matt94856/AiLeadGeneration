@@ -193,7 +193,7 @@ export class PhysicianRepository {
     let next = query.or("email.is.null,email.eq.");
 
     if (!options?.overwrite) {
-      next = next.is("research_metadata->email_enrichment->>enriched_at", null);
+      next = next.filter("research_metadata->email_enrichment->>enriched_at", "is", null);
     }
 
     if (options?.discoveredSince) {
