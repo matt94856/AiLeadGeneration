@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getContainer } from "@/services/container";
 import { jsonOk, handleApiError } from "@/lib/api-response";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { clampPageSize } from "@/lib/pagination";
 import type { PhysicianFilters } from "@/types";
 
 export async function GET(request: Request) {
@@ -34,7 +35,9 @@ export async function GET(request: Request) {
             ? false
             : undefined,
       page: searchParams.get("page") ? Number(searchParams.get("page")) : 1,
-      limit: searchParams.get("limit") ? Number(searchParams.get("limit")) : 20,
+      limit: clampPageSize(
+        searchParams.get("limit") ? Number(searchParams.get("limit")) : undefined
+      ),
     };
 
     const container = getContainer(supabase);

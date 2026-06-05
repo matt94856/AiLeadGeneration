@@ -45,8 +45,9 @@ export function SearchFilters({ filters, onChange, onSearch }: Props) {
         <Label htmlFor="specialty">Specialty</Label>
         <Input
           id="specialty"
-          value={filters.specialty ?? "Cardiology"}
-          onChange={(e) => onChange({ ...filters, specialty: e.target.value })}
+          placeholder="Cardiology"
+          value={filters.specialty ?? ""}
+          onChange={(e) => onChange({ ...filters, specialty: e.target.value || undefined })}
         />
       </div>
       <div>
