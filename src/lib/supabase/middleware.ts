@@ -35,6 +35,7 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/auth/");
   const isPublicApi =
     request.nextUrl.pathname.startsWith("/api/webhooks") ||
+    request.nextUrl.pathname.startsWith("/api/cron") ||
     request.nextUrl.pathname.startsWith("/api/health");
 
   if (!user && !isAuthRoute && !isPublicApi && request.nextUrl.pathname !== "/") {
