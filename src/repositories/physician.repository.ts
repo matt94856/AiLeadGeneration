@@ -90,15 +90,23 @@ export class PhysicianRepository {
       scoring_factors?: Record<string, boolean>;
     }
   ): Promise<"created" | "updated"> {
-    if (record.npi) {
+    const first_name = record.first_name?.trim();
+    const last_name = record.last_name?.trim();
+    if (!first_name || !last_name) {
+      throw new Error("first_name and last_name are required");
+    }
+
+    const payload = { ...record, first_name, last_name };
+
+    if (payload.npi) {
       const { data: existing } = await this.supabase
         .from("physicians")
         .select("id")
-        .eq("npi", record.npi)
+        .eq("npi", payload.npi)
         .maybeSingle();
 
       if (existing) {
-        await this.supabase.from("physicians").update(record).eq("id", existing.id);
+        await this.supabase.from("physicians").update(payload).eq("id", existing.id);
         return "updated";
       }
     }
@@ -106,20 +114,20 @@ export class PhysicianRepository {
     const { data: nameMatch } = await this.supabase
       .from("physicians")
       .select("id")
-      .ilike("first_name", record.first_name)
-      .ilike("last_name", record.last_name)
-      .eq("state", record.state ?? "")
+      .ilike("first_name", first_name)
+      .ilike("last_name", last_name)
+      .eq("state", payload.state ?? "")
       .maybeSingle();
 
     if (nameMatch) {
-      await this.supabase.from("physicians").update(record).eq("id", nameMatch.id);
+      await this.supabase.from("physicians").update(payload).eq("id", nameMatch.id);
       return "updated";
     }
 
     const { error } = await this.supabase.from("physicians").insert({
-      ...record,
-      specialty: record.specialty ?? "Cardiology",
-      lead_score: record.lead_score ?? 0,
+      ...payload,
+      specialty: payload.specialty ?? "Cardiology",
+      lead_score: payload.lead_score ?? 0,
       status: "new_lead",
     });
     if (error) throw new Error(error.message);

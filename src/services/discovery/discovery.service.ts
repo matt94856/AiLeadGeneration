@@ -1,4 +1,5 @@
 import { deduplicateRecords } from "@/lib/deduplication";
+import { filterValidPhysicianRecords } from "@/lib/physician-validation";
 import { calculateLeadScore, inferScoringFactors } from "@/lib/scoring";
 import { logger } from "@/lib/logger";
 import type { DataSourceAdapter } from "@/services/types";
@@ -35,28 +36,52 @@ export class DiscoveryService {
 
     logger.info("Discovery run started", { sourceId, params });
     const raw = await adapter.collect(params);
-    const deduped = deduplicateRecords(raw);
+    const valid = filterValidPhysicianRecords(raw);
+    const deduped = deduplicateRecords(valid);
+    const skipped = raw.length - valid.length;
+
+    if (skipped > 0) {
+      logger.info("Skipped invalid discovery records", { sourceId, skipped });
+    }
+
     const weights = await this.scoringRepo.getWeights();
 
     let created = 0;
     let updated = 0;
+    let failed = 0;
 
     for (const record of deduped) {
-      const factors = inferScoringFactors({
-        years_in_practice: record.years_in_practice,
-        organization: record.organization,
-      });
-      const lead_score = calculateLeadScore(factors, weights);
-      const result = await this.physicianRepo.upsertByNpiOrName({
-        ...record,
-        lead_score,
-        scoring_factors: factors as Record<string, boolean>,
-      });
-      if (result === "created") created++;
-      else updated++;
+      try {
+        const factors = inferScoringFactors({
+          years_in_practice: record.years_in_practice,
+          organization: record.organization,
+        });
+        const lead_score = calculateLeadScore(factors, weights);
+        const result = await this.physicianRepo.upsertByNpiOrName({
+          ...record,
+          lead_score,
+          scoring_factors: factors as Record<string, boolean>,
+        });
+        if (result === "created") created++;
+        else updated++;
+      } catch (error) {
+        failed++;
+        logger.warn("Physician upsert skipped", {
+          sourceId,
+          npi: record.npi,
+          error: error instanceof Error ? error.message : "unknown",
+        });
+      }
     }
 
-    logger.info("Discovery run completed", { sourceId, found: deduped.length, created, updated });
+    logger.info("Discovery run completed", {
+      sourceId,
+      found: deduped.length,
+      created,
+      updated,
+      skipped,
+      failed,
+    });
     return { source: sourceId, found: deduped.length, created, updated };
   }
 

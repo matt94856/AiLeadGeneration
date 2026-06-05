@@ -1,4 +1,5 @@
 import { logger } from "@/lib/logger";
+import { filterValidPhysicianRecords } from "@/lib/physician-validation";
 import type { NpiSearchParams } from "@/services/types";
 import type { NormalizedPhysicianInput } from "@/types";
 
@@ -11,9 +12,11 @@ interface NpiApiResult {
 
 interface NpiProvider {
   number: string;
+  enumeration_type?: string;
   basic: {
-    first_name: string;
-    last_name: string;
+    first_name?: string;
+    last_name?: string;
+    organization_name?: string;
     credential?: string;
     enumeration_date?: string;
   };
@@ -58,10 +61,21 @@ export class NpiService implements INpiService {
     }
 
     const data = (await response.json()) as NpiApiResult;
-    return (data.results ?? []).map((r) => this.normalize(r));
+    const normalized = (data.results ?? [])
+      .filter(
+        (r) =>
+          r.enumeration_type !== "NPI-2" &&
+          Boolean(r.basic?.first_name?.trim()) &&
+          Boolean(r.basic?.last_name?.trim())
+      )
+      .map((r) => this.normalize(r));
+
+    return filterValidPhysicianRecords(normalized);
   }
 
   private normalize(provider: NpiProvider): NormalizedPhysicianInput {
+    const first_name = provider.basic.first_name?.trim() ?? "";
+    const last_name = provider.basic.last_name?.trim() ?? "";
     const primaryTaxonomy =
       provider.taxonomies.find((t) => t.primary)?.desc ??
       provider.taxonomies[0]?.desc;
@@ -78,8 +92,8 @@ export class NpiService implements INpiService {
 
     return {
       npi: provider.number,
-      first_name: provider.basic.first_name,
-      last_name: provider.basic.last_name,
+      first_name,
+      last_name,
       specialty: "Cardiology",
       subspecialty: primaryTaxonomy ?? undefined,
       city: practiceAddress?.city,
