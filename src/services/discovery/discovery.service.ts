@@ -1,10 +1,8 @@
 import { deduplicateRecords } from "@/lib/deduplication";
 import { filterValidPhysicianRecords } from "@/lib/physician-validation";
-import { calculateLeadScore, inferScoringFactors } from "@/lib/scoring";
 import { logger } from "@/lib/logger";
 import type { DataSourceAdapter } from "@/services/types";
 import type { PhysicianRepository } from "@/repositories/physician.repository";
-import type { ScoringRepository } from "@/repositories/scoring.repository";
 import type { NormalizedPhysicianInput } from "@/types";
 
 export interface DiscoveryResult {
@@ -12,13 +10,13 @@ export interface DiscoveryResult {
   found: number;
   created: number;
   updated: number;
+  createdPhysicianIds: string[];
 }
 
 export class DiscoveryService {
   constructor(
     private readonly adapters: Map<string, DataSourceAdapter>,
-    private readonly physicianRepo: PhysicianRepository,
-    private readonly scoringRepo: ScoringRepository
+    private readonly physicianRepo: PhysicianRepository
   ) {}
 
   listSources(): string[] {
@@ -44,26 +42,20 @@ export class DiscoveryService {
       logger.info("Skipped invalid discovery records", { sourceId, skipped });
     }
 
-    const weights = await this.scoringRepo.getWeights();
-
     let created = 0;
     let updated = 0;
     let failed = 0;
+    const createdPhysicianIds: string[] = [];
 
     for (const record of deduped) {
       try {
-        const factors = inferScoringFactors({
-          years_in_practice: record.years_in_practice,
-          organization: record.organization,
-        });
-        const lead_score = calculateLeadScore(factors, weights);
-        const result = await this.physicianRepo.upsertByNpiOrName({
-          ...record,
-          lead_score,
-          scoring_factors: factors as Record<string, boolean>,
-        });
-        if (result === "created") created++;
-        else updated++;
+        const result = await this.physicianRepo.upsertByNpiOrName(record);
+        if (result.action === "created") {
+          created++;
+          createdPhysicianIds.push(result.id);
+        } else {
+          updated++;
+        }
       } catch (error) {
         failed++;
         logger.warn("Physician upsert skipped", {
@@ -82,7 +74,7 @@ export class DiscoveryService {
       skipped,
       failed,
     });
-    return { source: sourceId, found: deduped.length, created, updated };
+    return { source: sourceId, found: deduped.length, created, updated, createdPhysicianIds };
   }
 
   async runAllSources(params: Record<string, string>): Promise<DiscoveryResult[]> {

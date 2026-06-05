@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateLeadScore, inferScoringFactors } from "@/lib/scoring";
+import { calculateLeadScore, inferScoringFactors, resolveLeadScore } from "@/lib/scoring";
 import type { ScoringWeight } from "@/types";
 
 const weights: ScoringWeight[] = [
@@ -23,6 +23,14 @@ describe("calculateLeadScore", () => {
 
   it("calculates partial score", () => {
     expect(calculateLeadScore({ prior_locums_indicators: true }, weights)).toBe(67);
+  });
+});
+
+describe("resolveLeadScore", () => {
+  it("blends formula and AI scores", () => {
+    expect(
+      resolveLeadScore({ prior_locums_indicators: true }, weights, 80)
+    ).toBe(74);
   });
 });
 

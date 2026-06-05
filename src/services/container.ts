@@ -65,7 +65,7 @@ export function createContainer(supabase: SupabaseClient): ServiceContainer {
     activities,
     outreach,
     dashboard,
-    discovery: new DiscoveryService(adapters, physicians, scoring),
+    discovery: new DiscoveryService(adapters, physicians),
     research: new ResearchService(physicians, scoring, openai),
     emailEnrichment: new EmailEnrichmentService(physicians, openai, serper),
     openai,

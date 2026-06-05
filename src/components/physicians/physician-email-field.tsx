@@ -1,20 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 interface Props {
   physicianId: string;
   initialEmail: string | null;
+  aiSuggested?: boolean;
   onSaved: () => void;
 }
 
-export function PhysicianEmailField({ physicianId, initialEmail, onSaved }: Props) {
+export function PhysicianEmailField({
+  physicianId,
+  initialEmail,
+  aiSuggested = false,
+  onSaved,
+}: Props) {
   const [email, setEmail] = useState(initialEmail ?? "");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEmail(initialEmail ?? "");
+  }, [initialEmail]);
 
   async function save() {
     setSaving(true);
@@ -36,7 +47,14 @@ export function PhysicianEmailField({ physicianId, initialEmail, onSaved }: Prop
 
   return (
     <div className="rounded-lg border p-4 space-y-2 bg-card">
-      <Label htmlFor="physician-email">Physician email (required to Approve &amp; Send)</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        <Label htmlFor="physician-email">Physician email (required to Approve &amp; Send)</Label>
+        {aiSuggested && initialEmail && (
+          <Badge variant="outline" className="text-[10px]">
+            AI found
+          </Badge>
+        )}
+      </div>
       <div className="flex flex-col sm:flex-row gap-2">
         <Input
           id="physician-email"

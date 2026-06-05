@@ -10,6 +10,7 @@ import type { DashboardMetrics, Physician } from "@/types";
 import { PhysicianTable } from "@/components/physicians/physician-table";
 import { Button } from "@/components/ui/button";
 import { startOfDay } from "date-fns";
+import { isScoringPending } from "@/lib/scoring-status";
 
 interface DashboardData {
   metrics: DashboardMetrics;
@@ -27,7 +28,9 @@ export default function DashboardPage() {
   const [todaysLeads, setTodaysLeads] = useState<Physician[]>([]);
   const [loading, setLoading] = useState(true);
   const [enriching, setEnriching] = useState(false);
+  const [scoring, setScoring] = useState(false);
   const [enrichMessage, setEnrichMessage] = useState<string | null>(null);
+  const [scoreMessage, setScoreMessage] = useState<string | null>(null);
 
   function reloadLeads() {
     const since = startOfDay(new Date()).toISOString();
@@ -37,6 +40,12 @@ export default function DashboardPage() {
         if (leadsJson.success) setTodaysLeads(leadsJson.data.data);
       });
   }
+
+  useEffect(() => {
+    if (!todaysLeads.some(isScoringPending)) return;
+    const interval = setInterval(reloadLeads, 5000);
+    return () => clearInterval(interval);
+  }, [todaysLeads]);
 
   useEffect(() => {
     const since = startOfDay(new Date()).toISOString();
@@ -51,6 +60,26 @@ export default function DashboardPage() {
       setLoading(false);
     });
   }, []);
+
+  async function scoreLeadsWithAi() {
+    setScoring(true);
+    setScoreMessage(null);
+    const res = await fetch("/api/research/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ today_only: true, limit: 50 }),
+    });
+    const json = await res.json();
+    setScoring(false);
+    if (json.success) {
+      setScoreMessage(
+        `Scored ${json.data.completed} leads (${json.data.failed} failed). Highest scores appear at the top of Search.`
+      );
+      await reloadLeads();
+    } else {
+      setScoreMessage(json.error?.message ?? "AI scoring failed");
+    }
+  }
 
   async function findEmailsWithAi() {
     setEnriching(true);
@@ -91,6 +120,9 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
+            <Button size="sm" variant="secondary" onClick={scoreLeadsWithAi} disabled={scoring}>
+              {scoring ? "Scoring…" : "AI score leads"}
+            </Button>
             <Button size="sm" variant="secondary" onClick={findEmailsWithAi} disabled={enriching}>
               {enriching ? "Searching…" : "AI find emails"}
             </Button>
@@ -100,6 +132,11 @@ export default function DashboardPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          {scoreMessage && (
+            <p className="text-sm text-muted-foreground rounded-md border p-2 bg-muted/40">
+              {scoreMessage}
+            </p>
+          )}
           {enrichMessage && (
             <p className="text-sm text-muted-foreground rounded-md border p-2 bg-muted/40">
               {enrichMessage}

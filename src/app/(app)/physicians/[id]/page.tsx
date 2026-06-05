@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { ActivityTimeline } from "@/components/physicians/activity-timeline";
 import { OutreachPanel } from "@/components/physicians/outreach-panel";
 import { PhysicianEmailField } from "@/components/physicians/physician-email-field";
+import { LeadScoreBadge } from "@/components/physicians/lead-score-badge";
+import { hasAiFoundEmail, isScoringPending } from "@/lib/scoring-status";
 import type { Physician, Activity, OutreachDraft } from "@/types";
 
 export default function PhysicianDetailPage() {
@@ -35,6 +37,12 @@ export default function PhysicianDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!physician || !isScoringPending(physician)) return;
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, [physician, load]);
 
   async function runResearch() {
     await fetch(`/api/research/${id}`, { method: "POST" });
@@ -88,7 +96,7 @@ export default function PhysicianDetailPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge variant="success">Score {physician.lead_score}</Badge>
+          <LeadScoreBadge physician={physician} />
           <Badge variant="outline" className="capitalize">
             {physician.status.replace(/_/g, " ")}
           </Badge>
@@ -115,6 +123,23 @@ export default function PhysicianDetailPage() {
             <p><span className="text-muted-foreground">Organization:</span> {physician.organization ?? "—"}</p>
             <p><span className="text-muted-foreground">Years in practice:</span> {physician.years_in_practice ?? "—"}</p>
             <p><span className="text-muted-foreground">Source:</span> {physician.source ?? "—"}</p>
+            <p className="flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground">Email:</span>
+              {physician.email ? (
+                <>
+                  <a href={`mailto:${physician.email}`} className="text-primary hover:underline">
+                    {physician.email}
+                  </a>
+                  {hasAiFoundEmail(physician) && (
+                    <Badge variant="outline" className="text-[10px]">
+                      AI found
+                    </Badge>
+                  )}
+                </>
+              ) : (
+                "—"
+              )}
+            </p>
             {physician.physician_summary && (
               <p className="mt-4 text-muted-foreground leading-relaxed">{physician.physician_summary}</p>
             )}
@@ -133,6 +158,7 @@ export default function PhysicianDetailPage() {
       <PhysicianEmailField
         physicianId={id}
         initialEmail={physician.email}
+        aiSuggested={hasAiFoundEmail(physician)}
         onSaved={load}
       />
 

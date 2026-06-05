@@ -31,7 +31,8 @@ export interface OpenAIResearchOutput {
   publications: { title: string; year?: number }[];
   speaking_appearances: { title: string; event?: string; year?: number }[];
   conference_participation: { name: string; year?: number; role?: string }[];
-  inferred_factors: Record<string, boolean>;
+  inferred_factors?: Record<string, boolean | string | number>;
+  lead_score?: number;
 }
 
 export interface OutreachDraftInput {

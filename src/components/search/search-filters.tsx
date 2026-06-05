@@ -82,6 +82,19 @@ export function SearchFilters({ filters, onChange, onSearch }: Props) {
         />
       </div>
       <div className="flex items-end">
+        <label className="flex items-center gap-2 text-sm cursor-pointer pb-2">
+          <input
+            type="checkbox"
+            className="rounded border"
+            checked={filters.hasEmail === true}
+            onChange={(e) =>
+              onChange({ ...filters, hasEmail: e.target.checked ? true : undefined })
+            }
+          />
+          Has email only
+        </label>
+      </div>
+      <div className="flex items-end">
         <Button className="w-full" onClick={onSearch}>
           Search
         </Button>

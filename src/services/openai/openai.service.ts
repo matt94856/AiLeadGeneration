@@ -55,7 +55,7 @@ Organization: ${input.organization ?? "Unknown"}
 Location: ${input.city ?? ""}, ${input.state ?? ""}
 Additional context: ${input.publicContext ?? "None"}
 
-Respond in JSON with keys: physician_summary (2-4 sentences), current_employer, practice_size, hospital_affiliations (array), publications (array of {title, year}), speaking_appearances (array), conference_participation (array of {name, year, role}), inferred_factors (object with boolean keys: retirement_proximity, job_transition, active_publications, conference_participation, new_organization, private_practice, prior_locums_indicators).`;
+Respond in JSON with keys: physician_summary (2-4 sentences), current_employer, practice_size, hospital_affiliations (array), publications (array of {title, year}), speaking_appearances (array), conference_participation (array of {name, year, role}), inferred_factors (object with boolean keys: retirement_proximity, job_transition, active_publications, conference_participation, new_organization, private_practice, prior_locums_indicators), lead_score (integer 0-100 estimating locum placement potential based on the factors you inferred).`;
 
     const completion = await client.chat.completions.create({
       model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
@@ -220,7 +220,10 @@ export class MockOpenAIService implements IOpenAIService {
       publications: [],
       speaking_appearances: [],
       conference_participation: [],
-      inferred_factors: {},
+      inferred_factors: {
+        private_practice: Boolean(input.organization?.toLowerCase().includes("private")),
+      },
+      lead_score: 35,
     };
   }
 

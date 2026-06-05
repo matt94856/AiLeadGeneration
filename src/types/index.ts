@@ -141,6 +141,7 @@ export interface PhysicianFilters {
   status?: PhysicianStatus;
   keyword?: string;
   discoveredSince?: string;
+  hasEmail?: boolean;
   page?: number;
   limit?: number;
 }

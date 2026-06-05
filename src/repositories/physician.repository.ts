@@ -48,6 +48,11 @@ export class PhysicianRepository {
     if (filters.discoveredSince) {
       query = query.gte("created_at", filters.discoveredSince);
     }
+    if (filters.hasEmail === true) {
+      query = query.not("email", "is", null).neq("email", "");
+    } else if (filters.hasEmail === false) {
+      query = query.or("email.is.null,email.eq.");
+    }
 
     query = query.order("lead_score", { ascending: false }).range(from, to);
 
@@ -86,28 +91,44 @@ export class PhysicianRepository {
       first_name: string;
       last_name: string;
       source: string;
-      lead_score?: number;
-      scoring_factors?: Record<string, boolean>;
     }
-  ): Promise<"created" | "updated"> {
+  ): Promise<{ action: "created" | "updated"; id: string }> {
     const first_name = record.first_name?.trim();
     const last_name = record.last_name?.trim();
     if (!first_name || !last_name) {
       throw new Error("first_name and last_name are required");
     }
 
-    const payload = { ...record, first_name, last_name };
+    const demographicFields = {
+      first_name,
+      last_name,
+      specialty: record.specialty ?? "Cardiology",
+      subspecialty: record.subspecialty ?? null,
+      city: record.city ?? null,
+      state: record.state ?? null,
+      organization: record.organization ?? null,
+      years_in_practice: record.years_in_practice ?? null,
+      phone: record.phone ?? null,
+      npi: record.npi ?? null,
+      website: record.website ?? null,
+      linkedin_url: record.linkedin_url ?? null,
+      source: record.source,
+    };
 
-    if (payload.npi) {
+    if (demographicFields.npi) {
       const { data: existing } = await this.supabase
         .from("physicians")
         .select("id")
-        .eq("npi", payload.npi)
+        .eq("npi", demographicFields.npi)
         .maybeSingle();
 
       if (existing) {
-        await this.supabase.from("physicians").update(payload).eq("id", existing.id);
-        return "updated";
+        const { error } = await this.supabase
+          .from("physicians")
+          .update(demographicFields)
+          .eq("id", existing.id);
+        if (error) throw new Error(error.message);
+        return { action: "updated", id: existing.id };
       }
     }
 
@@ -116,22 +137,55 @@ export class PhysicianRepository {
       .select("id")
       .ilike("first_name", first_name)
       .ilike("last_name", last_name)
-      .eq("state", payload.state ?? "")
+      .eq("state", demographicFields.state ?? "")
       .maybeSingle();
 
     if (nameMatch) {
-      await this.supabase.from("physicians").update(payload).eq("id", nameMatch.id);
-      return "updated";
+      const { error } = await this.supabase
+        .from("physicians")
+        .update(demographicFields)
+        .eq("id", nameMatch.id);
+      if (error) throw new Error(error.message);
+      return { action: "updated", id: nameMatch.id };
     }
 
-    const { error } = await this.supabase.from("physicians").insert({
-      ...payload,
-      specialty: payload.specialty ?? "Cardiology",
-      lead_score: payload.lead_score ?? 0,
-      status: "new_lead",
-    });
+    const { data, error } = await this.supabase
+      .from("physicians")
+      .insert({
+        ...demographicFields,
+        lead_score: 0,
+        status: "new_lead",
+        research_metadata: { scoring_status: "pending" },
+      })
+      .select("id")
+      .single();
     if (error) throw new Error(error.message);
-    return "created";
+    return { action: "created", id: data.id as string };
+  }
+
+  async listNeedsScoring(limit = 25, discoveredSince?: string): Promise<Physician[]> {
+    let query = this.supabase
+      .from("physicians")
+      .select("*")
+      .in("status", ["new_lead", "researching"])
+      .order("created_at", { ascending: false })
+      .limit(limit * 3);
+
+    if (discoveredSince) {
+      query = query.gte("created_at", discoveredSince);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+
+    return ((data ?? []) as Physician[])
+      .filter((p) => {
+        const status = p.research_metadata?.scoring_status;
+        if (status === "processing") return false;
+        if (status === "complete" && p.lead_score > 0) return false;
+        return status === "pending" || status === "failed" || p.lead_score === 0;
+      })
+      .slice(0, limit);
   }
 
   async saveResearch(

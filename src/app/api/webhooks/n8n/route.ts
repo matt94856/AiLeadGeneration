@@ -1,7 +1,9 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { jsonOk, jsonError, handleApiError } from "@/lib/api-response";
 import { logger } from "@/lib/logger";
-import { getContainer } from "@/services/container";
+import { getContainer, resetContainer } from "@/services/container";
+import { runAutoScoringAfterDiscovery, collectCreatedPhysicianIds } from "@/services/discovery/auto-scoring";
+import { after } from "next/server";
 
 /**
  * n8n-compatible webhook endpoint.
@@ -9,6 +11,7 @@ import { getContainer } from "@/services/container";
  *
  * Supported events:
  * - discovery.run { source?, state?, city?, limit? }
+ * - research.batch { limit?, today_only?, physician_ids? }
  * - research.run { physician_id }
  * - physician.status { physician_id, status }
  * - enrichment.emails { limit?, today_only? }
@@ -31,6 +34,7 @@ export async function POST(request: Request) {
       payload,
     });
 
+    resetContainer();
     const container = getContainer(supabase);
     let result: unknown = { acknowledged: true };
 
@@ -42,11 +46,45 @@ export async function POST(request: Request) {
         if (data.city) params.city = String(data.city);
         if (data.limit) params.limit = String(data.limit);
 
+        let discoveryResult;
         if (data.source) {
-          result = await container.discovery.runDiscovery(String(data.source), params);
+          discoveryResult = await container.discovery.runDiscovery(String(data.source), params);
         } else {
-          result = await container.discovery.runAllSources(params);
+          discoveryResult = await container.discovery.runAllSources(params);
         }
+
+        const createdIds = collectCreatedPhysicianIds(discoveryResult);
+
+        after(async () => {
+          try {
+            resetContainer();
+            const bgSupabase = await createServiceClient();
+            const bgContainer = getContainer(bgSupabase);
+            await runAutoScoringAfterDiscovery(bgContainer, discoveryResult);
+          } catch (error) {
+            logger.error("Background research batch failed", {
+              error: error instanceof Error ? error.message : "unknown",
+            });
+          }
+        });
+
+        result = {
+          discovery: discoveryResult,
+          scoring: { status: "queued", created_count: createdIds.length },
+        };
+        break;
+      }
+      case "research.batch": {
+        const data = payload.data ?? {};
+        result = await container.research.researchBatch({
+          limit: data.limit ? Number(data.limit) : 25,
+          discoveredSince: data.today_only
+            ? new Date().toISOString().slice(0, 10) + "T00:00:00.000Z"
+            : undefined,
+          physicianIds: Array.isArray(data.physician_ids)
+            ? data.physician_ids.map(String)
+            : undefined,
+        });
         break;
       }
       case "research.run": {

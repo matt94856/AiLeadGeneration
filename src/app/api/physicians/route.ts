@@ -27,6 +27,12 @@ export async function GET(request: Request) {
       maxYears: searchParams.get("maxYears") ? Number(searchParams.get("maxYears")) : undefined,
       minScore: searchParams.get("minScore") ? Number(searchParams.get("minScore")) : undefined,
       maxScore: searchParams.get("maxScore") ? Number(searchParams.get("maxScore")) : undefined,
+      hasEmail:
+        searchParams.get("hasEmail") === "true"
+          ? true
+          : searchParams.get("hasEmail") === "false"
+            ? false
+            : undefined,
       page: searchParams.get("page") ? Number(searchParams.get("page")) : 1,
       limit: searchParams.get("limit") ? Number(searchParams.get("limit")) : 20,
     };

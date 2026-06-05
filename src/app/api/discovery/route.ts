@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
-import { getContainer } from "@/services/container";
+import { getContainer, resetContainer } from "@/services/container";
 import { jsonOk, jsonError, handleApiError } from "@/lib/api-response";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { runAutoScoringAfterDiscovery } from "@/services/discovery/auto-scoring";
+import { after } from "next/server";
 
 export async function GET() {
   const supabase = await createClient();
@@ -73,7 +75,20 @@ export async function POST(request: Request) {
 
     logger.info("Discovery activity", { userId: user.id, totals, runId: run?.id });
 
-    return jsonOk({ results, totals });
+    after(async () => {
+      try {
+        resetContainer();
+        const bgSupabase = await createClient();
+        const bgContainer = getContainer(bgSupabase);
+        await runAutoScoringAfterDiscovery(bgContainer, results);
+      } catch (error) {
+        logger.error("Background scoring after UI discovery failed", {
+          error: error instanceof Error ? error.message : "unknown",
+        });
+      }
+    });
+
+    return jsonOk({ results, totals, scoring: { status: "queued" } });
   } catch (error) {
     return handleApiError(error, "POST /api/discovery");
   }

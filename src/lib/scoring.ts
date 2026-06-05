@@ -1,6 +1,46 @@
 import type { ScoringFactorKey, ScoringWeight } from "@/types";
 import { clampScore } from "@/lib/utils";
 
+export const SCORING_FACTOR_KEYS: ScoringFactorKey[] = [
+  "retirement_proximity",
+  "job_transition",
+  "active_publications",
+  "conference_participation",
+  "new_organization",
+  "private_practice",
+  "prior_locums_indicators",
+];
+
+export function normalizeInferredFactors(
+  raw: Record<string, unknown> | undefined
+): Partial<Record<ScoringFactorKey, boolean>> {
+  if (!raw) return {};
+  const result: Partial<Record<ScoringFactorKey, boolean>> = {};
+  for (const key of SCORING_FACTOR_KEYS) {
+    const val = raw[key];
+    if (val === true || val === "true" || val === 1 || val === "1") {
+      result[key] = true;
+    }
+  }
+  return result;
+}
+
+export function resolveLeadScore(
+  factors: Partial<Record<ScoringFactorKey, boolean>>,
+  weights: ScoringWeight[],
+  aiScore?: number | null
+): number {
+  const formulaScore = calculateLeadScore(factors, weights);
+  if (aiScore != null && Number.isFinite(aiScore)) {
+    const normalizedAi = clampScore(aiScore);
+    if (formulaScore > 0 && normalizedAi > 0) {
+      return clampScore(Math.round((formulaScore + normalizedAi) / 2));
+    }
+    return Math.max(formulaScore, normalizedAi);
+  }
+  return formulaScore;
+}
+
 export function calculateLeadScore(
   factors: Partial<Record<ScoringFactorKey, boolean>>,
   weights: ScoringWeight[]
