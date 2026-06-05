@@ -66,13 +66,15 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"event\": \"research.batch\",\n  \"data\": {\n    \"today_only\": true,\n    \"limit\": 50\n  }\n}"
+        "jsonBody": "{\n  \"event\": \"research.batch\",\n  \"data\": {\n    \"all_pending\": true,\n    \"limit\": 12\n  }\n}"
       },
       "id": "http-research",
       "name": "AI score leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [560, 0]
+      "position": [560, 0],
+      "notesInFlow": true,
+      "notes": "Processes 12 per call; app auto-continues until all unscored physicians are done."
     },
     {
       "parameters": {
@@ -94,13 +96,15 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"event\": \"enrichment.emails\",\n  \"data\": {\n    \"today_only\": true,\n    \"limit\": 25\n  }\n}"
+        "jsonBody": "{\n  \"event\": \"enrichment.emails\",\n  \"data\": {\n    \"all_pending\": true,\n    \"limit\": 12\n  }\n}"
       },
       "id": "http-enrichment",
       "name": "AI find emails",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [840, 0]
+      "position": [840, 0],
+      "notesInFlow": true,
+      "notes": "Processes 12 per call; app auto-continues until all missing emails are checked."
     }
   ],
   "connections": {

@@ -98,18 +98,38 @@ curl -X POST "https://ai-lead-generation-pink.vercel.app/api/webhooks/n8n" \
 
 Check **Dashboard → New leads today** after a successful run.
 
-### Optional: auto-find emails after discovery
+### AI score + email nodes (auto-continue)
 
-Add a second **HTTP Request** node after discovery (or run manually from Dashboard):
+Each node processes **12 physicians per HTTP call**, then the app **automatically chains** more calls in the background until finished. Use `all_pending: true` to process your full database (not just today).
+
+**Score leads:**
+```json
+{
+  "event": "research.batch",
+  "data": { "all_pending": true, "limit": 12 }
+}
+```
+
+**Find emails:**
+```json
+{
+  "event": "enrichment.emails",
+  "data": { "all_pending": true, "limit": 12 }
+}
+```
+
+n8n only needs **one** HTTP call per step; the response includes `remaining` and `continuation_queued: true` while work continues.
+
+Set **APP_URL** in Vercel (e.g. `https://ai-lead-generation-pink.vercel.app`) so auto-continuation can call back into your app.
+
+### Optional: today-only scope
 
 ```json
 {
   "event": "enrichment.emails",
-  "data": { "today_only": true, "limit": 25 }
+  "data": { "today_only": true, "limit": 12 }
 }
 ```
-
-Same URL and `x-webhook-secret` header as discovery.
 
 ---
 

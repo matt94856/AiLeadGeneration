@@ -3,18 +3,24 @@ import { jsonOk, jsonError, handleApiError } from "@/lib/api-response";
 import { logger } from "@/lib/logger";
 import { getContainer, resetContainer } from "@/services/container";
 import { runAutoScoringAfterDiscovery, collectCreatedPhysicianIds } from "@/services/discovery/auto-scoring";
+import { runResearchWebhookBatch, runEmailWebhookBatch } from "@/lib/webhook-batch";
+import type { WebhookBatchData } from "@/lib/batch-options";
 import { after } from "next/server";
+
+export const maxDuration = 60;
 
 /**
  * n8n-compatible webhook endpoint.
  * Authenticate with WEBHOOK_SECRET header: x-webhook-secret
  *
+ * Batch events process up to 12 physicians per call, then auto-chain until done.
+ *
  * Supported events:
  * - discovery.run { source?, state?, city?, limit? }
- * - research.batch { limit?, today_only?, physician_ids? }
+ * - research.batch { limit?, today_only?, all_pending? }
  * - research.run { physician_id }
  * - physician.status { physician_id, status }
- * - enrichment.emails { limit?, today_only? }
+ * - enrichment.emails { limit?, today_only?, all_pending? }
  */
 export async function POST(request: Request) {
   try {
@@ -25,7 +31,7 @@ export async function POST(request: Request) {
 
     const payload = await request.json() as {
       event: string;
-      data?: Record<string, unknown>;
+      data?: WebhookBatchData;
     };
 
     const supabase = await createServiceClient();
@@ -37,10 +43,10 @@ export async function POST(request: Request) {
     resetContainer();
     const container = getContainer(supabase);
     let result: unknown = { acknowledged: true };
+    const data = payload.data ?? {};
 
     switch (payload.event) {
       case "discovery.run": {
-        const data = payload.data ?? {};
         const params: Record<string, string> = {};
         if (data.state) params.state = String(data.state);
         if (data.city) params.city = String(data.city);
@@ -75,16 +81,7 @@ export async function POST(request: Request) {
         break;
       }
       case "research.batch": {
-        const data = payload.data ?? {};
-        result = await container.research.researchBatch({
-          limit: data.limit ? Number(data.limit) : 25,
-          discoveredSince: data.today_only
-            ? new Date().toISOString().slice(0, 10) + "T00:00:00.000Z"
-            : undefined,
-          physicianIds: Array.isArray(data.physician_ids)
-            ? data.physician_ids.map(String)
-            : undefined,
-        });
+        result = await runResearchWebhookBatch(container, data);
         break;
       }
       case "research.run": {
@@ -100,11 +97,7 @@ export async function POST(request: Request) {
         break;
       }
       case "enrichment.emails": {
-        const data = payload.data ?? {};
-        result = await container.emailEnrichment.enrichBatch({
-          limit: data.limit ? Number(data.limit) : 25,
-          discoveredSince: data.today_only ? new Date().toISOString().slice(0, 10) + "T00:00:00.000Z" : undefined,
-        });
+        result = await runEmailWebhookBatch(container, data);
         break;
       }
       default:

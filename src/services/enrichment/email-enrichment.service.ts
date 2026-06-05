@@ -1,3 +1,4 @@
+import { DEFAULT_BATCH_CHUNK } from "@/lib/batch-config";
 import { logger } from "@/lib/logger";
 import { sleep } from "@/lib/utils";
 import type { IOpenAIService } from "@/services/openai/openai.service";
@@ -12,6 +13,17 @@ export interface EnrichBatchOptions {
   physicianIds?: string[];
   minConfidence?: "medium" | "high";
   overwrite?: boolean;
+}
+
+export interface EnrichBatchResult {
+  processed: number;
+  found: number;
+  not_found: number;
+  skipped: number;
+  errors: number;
+  remaining: number;
+  has_more: boolean;
+  results: EmailEnrichmentResult[];
 }
 
 export class EmailEnrichmentService {
@@ -144,15 +156,8 @@ export class EmailEnrichmentService {
     }
   }
 
-  async enrichBatch(options: EnrichBatchOptions = {}): Promise<{
-    processed: number;
-    found: number;
-    not_found: number;
-    skipped: number;
-    errors: number;
-    results: EmailEnrichmentResult[];
-  }> {
-    const limit = options.limit ?? 25;
+  async enrichBatch(options: EnrichBatchOptions = {}): Promise<EnrichBatchResult> {
+    const limit = options.limit ?? DEFAULT_BATCH_CHUNK;
     let targets: Physician[];
 
     if (options.physicianIds?.length) {
@@ -188,6 +193,17 @@ export class EmailEnrichmentService {
       not_found,
     });
 
-    return { processed: results.length, found, not_found, skipped, errors, results };
+    const remaining = await this.physicians.countMissingEmail(options.discoveredSince);
+
+    return {
+      processed: results.length,
+      found,
+      not_found,
+      skipped,
+      errors,
+      remaining,
+      has_more: remaining > 0,
+      results,
+    };
   }
 }

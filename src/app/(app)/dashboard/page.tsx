@@ -67,13 +67,17 @@ export default function DashboardPage() {
     const res = await fetch("/api/research/batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ today_only: true, limit: 50 }),
+      body: JSON.stringify({ all_pending: true, limit: 12 }),
     });
     const json = await res.json();
     setScoring(false);
     if (json.success) {
       setScoreMessage(
-        `Scored ${json.data.completed} leads (${json.data.failed} failed). Highest scores appear at the top of Search.`
+        `Scored ${json.data.completed} this round (${json.data.remaining} still pending). ${
+          json.data.continuation_queued
+            ? "More scoring continues automatically in the background."
+            : "All caught up on scoring."
+        }`
       );
       await reloadLeads();
     } else {
@@ -87,13 +91,17 @@ export default function DashboardPage() {
     const res = await fetch("/api/enrichment/emails", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ today_only: true, limit: 25 }),
+      body: JSON.stringify({ all_pending: true, today_only: false, limit: 12 }),
     });
     const json = await res.json();
     setEnriching(false);
     if (json.success) {
       setEnrichMessage(
-        `Found ${json.data.found} emails (${json.data.not_found} not found). ${json.data.hint ?? "Review AI-suggested emails before sending."}`
+        `Found ${json.data.found} emails this round (${json.data.remaining} still without email). ${
+          json.data.continuation_queued
+            ? "More lookups continue automatically in the background."
+            : json.data.hint ?? "Review AI-suggested emails before sending."
+        }`
       );
       await reloadLeads();
     } else {

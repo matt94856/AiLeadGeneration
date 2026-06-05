@@ -9,6 +9,8 @@ import type { IOpenAIService } from "@/services/openai/openai.service";
 import type { OpenAIResearchOutput } from "@/services/types";
 import type { PhysicianRepository } from "@/repositories/physician.repository";
 import type { ScoringRepository } from "@/repositories/scoring.repository";
+import { DEFAULT_BATCH_CHUNK, STALE_PROCESSING_MS } from "@/lib/batch-config";
+import { physicianNeedsScoring } from "@/lib/scoring-status";
 import { formatPhysicianName } from "@/lib/utils";
 import type { Physician } from "@/types";
 
@@ -22,6 +24,8 @@ export interface ResearchBatchResult {
   processed: number;
   completed: number;
   failed: number;
+  remaining: number;
+  has_more: boolean;
   results: Array<{ physician_id: string; lead_score?: number; status: "complete" | "failed"; error?: string }>;
 }
 
@@ -117,7 +121,7 @@ export class ResearchService {
   }
 
   async researchBatch(options: ResearchBatchOptions = {}): Promise<ResearchBatchResult> {
-    const limit = options.limit ?? 25;
+    const limit = options.limit ?? DEFAULT_BATCH_CHUNK;
     let targets: Physician[];
 
     if (options.physicianIds?.length) {
@@ -125,10 +129,11 @@ export class ResearchService {
         await Promise.all(options.physicianIds.map((id) => this.physicianRepo.findById(id)))
       ).filter((p): p is Physician => {
         if (!p) return false;
-        const status = p.research_metadata?.scoring_status;
-        if (status === "processing") return false;
-        if (status === "complete" && p.lead_score > 0) return false;
-        return true;
+        if (p.research_metadata?.scoring_status === "processing") {
+          const updated = new Date(p.updated_at).getTime();
+          if (Date.now() - updated < STALE_PROCESSING_MS) return false;
+        }
+        return physicianNeedsScoring(p);
       });
     } else {
       targets = await this.physicianRepo.listNeedsScoring(limit, options.discoveredSince);
@@ -169,6 +174,14 @@ export class ResearchService {
     }
 
     logger.info("Research batch complete", { processed: results.length, completed, failed });
-    return { processed: results.length, completed, failed, results };
+    const remaining = await this.physicianRepo.countNeedsScoring(options.discoveredSince);
+    return {
+      processed: results.length,
+      completed,
+      failed,
+      remaining,
+      has_more: remaining > 0,
+      results,
+    };
   }
 }

@@ -7,6 +7,7 @@ import type {
   ConferenceRecord,
   SpeakingRecord,
 } from "@/types";
+import { physicianNeedsScoring, physicianNeedsEmail } from "@/lib/scoring-status";
 
 export class PhysicianRepository {
   constructor(private readonly supabase: SupabaseClient) {}
@@ -167,9 +168,8 @@ export class PhysicianRepository {
     let query = this.supabase
       .from("physicians")
       .select("*")
-      .in("status", ["new_lead", "researching"])
       .order("created_at", { ascending: false })
-      .limit(limit * 3);
+      .limit(Math.min(limit * 5, 500));
 
     if (discoveredSince) {
       query = query.gte("created_at", discoveredSince);
@@ -178,14 +178,33 @@ export class PhysicianRepository {
     const { data, error } = await query;
     if (error) throw new Error(error.message);
 
-    return ((data ?? []) as Physician[])
-      .filter((p) => {
-        const status = p.research_metadata?.scoring_status;
-        if (status === "processing") return false;
-        if (status === "complete" && p.lead_score > 0) return false;
-        return status === "pending" || status === "failed" || p.lead_score === 0;
-      })
-      .slice(0, limit);
+    return ((data ?? []) as Physician[]).filter(physicianNeedsScoring).slice(0, limit);
+  }
+
+  async countNeedsScoring(discoveredSince?: string): Promise<number> {
+    return (await this.listNeedsScoring(500, discoveredSince)).length;
+  }
+
+  async listMissingEmail(limit = 25, discoveredSince?: string): Promise<Physician[]> {
+    let query = this.supabase
+      .from("physicians")
+      .select("*")
+      .or("email.is.null,email.eq.")
+      .order("lead_score", { ascending: false })
+      .limit(Math.min(limit * 5, 500));
+
+    if (discoveredSince) {
+      query = query.gte("created_at", discoveredSince);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+
+    return ((data ?? []) as Physician[]).filter(physicianNeedsEmail).slice(0, limit);
+  }
+
+  async countMissingEmail(discoveredSince?: string): Promise<number> {
+    return (await this.listMissingEmail(500, discoveredSince)).length;
   }
 
   async saveResearch(
@@ -219,22 +238,5 @@ export class PhysicianRepository {
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data;
-  }
-
-  async listMissingEmail(limit = 25, discoveredSince?: string): Promise<Physician[]> {
-    let query = this.supabase
-      .from("physicians")
-      .select("*")
-      .or("email.is.null,email.eq.")
-      .order("lead_score", { ascending: false })
-      .limit(limit);
-
-    if (discoveredSince) {
-      query = query.gte("created_at", discoveredSince);
-    }
-
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
-    return (data ?? []) as Physician[];
   }
 }

@@ -1,4 +1,5 @@
 import type { Physician } from "@/types";
+import { STALE_PROCESSING_MS } from "@/lib/batch-config";
 
 export type ScoringStatus = "pending" | "processing" | "complete" | "failed";
 
@@ -19,6 +20,24 @@ export function isScoringPending(physician: Physician): boolean {
   const status = getScoringStatus(physician);
   if (status === "pending" || status === "processing") return true;
   return physician.lead_score === 0 && status !== "complete" && status !== "failed";
+}
+
+export function physicianNeedsScoring(physician: Physician): boolean {
+  const status = physician.research_metadata?.scoring_status;
+
+  if (status === "processing") {
+    const updated = new Date(physician.updated_at).getTime();
+    if (Date.now() - updated < STALE_PROCESSING_MS) return false;
+    return true;
+  }
+
+  if (status === "complete" && physician.lead_score > 0) return false;
+  if (status === "pending" || status === "failed") return true;
+  return physician.lead_score === 0;
+}
+
+export function physicianNeedsEmail(physician: Physician): boolean {
+  return !physician.email?.trim();
 }
 
 export function hasAiFoundEmail(physician: Physician): boolean {
