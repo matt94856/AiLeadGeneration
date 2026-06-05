@@ -8,7 +8,7 @@ import { getContainer } from "@/services/container";
  * Authenticate with WEBHOOK_SECRET header: x-webhook-secret
  *
  * Supported events:
- * - discovery.run { source?, state? }
+ * - discovery.run { source?, state?, city?, limit? }
  * - research.run { physician_id }
  * - physician.status { physician_id, status }
  * - enrichment.emails { limit?, today_only? }
@@ -37,15 +37,15 @@ export async function POST(request: Request) {
     switch (payload.event) {
       case "discovery.run": {
         const data = payload.data ?? {};
+        const params: Record<string, string> = {};
+        if (data.state) params.state = String(data.state);
+        if (data.city) params.city = String(data.city);
+        if (data.limit) params.limit = String(data.limit);
+
         if (data.source) {
-          result = await container.discovery.runDiscovery(
-            String(data.source),
-            { state: data.state ? String(data.state) : "" }
-          );
+          result = await container.discovery.runDiscovery(String(data.source), params);
         } else {
-          result = await container.discovery.runAllSources(
-            { state: data.state ? String(data.state) : "" }
-          );
+          result = await container.discovery.runAllSources(params);
         }
         break;
       }

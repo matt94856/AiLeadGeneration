@@ -21,14 +21,14 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $vars.CARDIOLOCUMS_APP_URL }}/api/webhooks/n8n",
+        "url": "https://ai-lead-generation-pink.vercel.app/api/webhooks/n8n",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-webhook-secret",
-              "value": "={{ $vars.WEBHOOK_SECRET }}"
+              "value": "YOUR_WEBHOOK_SECRET"
             },
             {
               "name": "Content-Type",
@@ -38,13 +38,41 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"event\": \"discovery.run\",\n  \"data\": {\n    \"state\": \"{{ $vars.DISCOVERY_STATE || 'FL' }}\",\n    \"runAll\": true\n  }\n}"
+        "jsonBody": "{\n  \"event\": \"discovery.run\",\n  \"data\": {\n    \"state\": \"FL\",\n    \"runAll\": true\n  }\n}"
       },
       "id": "http-discovery",
       "name": "Run lead discovery",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [280, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ai-lead-generation-pink.vercel.app/api/webhooks/n8n",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-webhook-secret",
+              "value": "YOUR_WEBHOOK_SECRET"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"event\": \"enrichment.emails\",\n  \"data\": {\n    \"today_only\": true,\n    \"limit\": 25\n  }\n}"
+      },
+      "id": "http-enrichment",
+      "name": "AI find emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 0]
     }
   ],
   "connections": {
@@ -53,6 +81,17 @@
         [
           {
             "node": "Run lead discovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run lead discovery": {
+      "main": [
+        [
+          {
+            "node": "AI find emails",
             "type": "main",
             "index": 0
           }
