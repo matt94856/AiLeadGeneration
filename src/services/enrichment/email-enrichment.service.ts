@@ -231,6 +231,19 @@ export class EmailEnrichmentService {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       logger.error("Email enrichment failed", { physicianId: physician.id, error: message });
+
+      await this.physicians.update(physician.id, {
+        research_metadata: {
+          ...(physician.research_metadata ?? {}),
+          email_enrichment: {
+            enriched_at: new Date().toISOString(),
+            ai_suggested: false,
+            error: message,
+            search_query: searchQuery,
+          },
+        },
+      });
+
       return {
         physician_id: physician.id,
         email: null,
@@ -253,7 +266,9 @@ export class EmailEnrichmentService {
         await Promise.all(options.physicianIds.map((id) => this.physicians.findById(id)))
       ).filter((p): p is Physician => p !== null);
     } else {
-      targets = await this.physicians.listMissingEmail(limit, options.discoveredSince);
+      targets = await this.physicians.listMissingEmail(limit, options.discoveredSince, {
+        overwrite: options.overwrite,
+      });
     }
 
     const results: EmailEnrichmentResult[] = [];
@@ -281,7 +296,9 @@ export class EmailEnrichmentService {
       not_found,
     });
 
-    const remaining = await this.physicians.countMissingEmail(options.discoveredSince);
+    const remaining = await this.physicians.countMissingEmail(options.discoveredSince, {
+      overwrite: options.overwrite,
+    });
 
     return {
       processed: results.length,

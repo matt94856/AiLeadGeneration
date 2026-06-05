@@ -185,7 +185,11 @@ export class PhysicianRepository {
     return (await this.listNeedsScoring(500, discoveredSince)).length;
   }
 
-  async listMissingEmail(limit = 25, discoveredSince?: string): Promise<Physician[]> {
+  async listMissingEmail(
+    limit = 25,
+    discoveredSince?: string,
+    options?: { overwrite?: boolean }
+  ): Promise<Physician[]> {
     let query = this.supabase
       .from("physicians")
       .select("*")
@@ -200,11 +204,16 @@ export class PhysicianRepository {
     const { data, error } = await query;
     if (error) throw new Error(error.message);
 
-    return ((data ?? []) as Physician[]).filter(physicianNeedsEmail).slice(0, limit);
+    return ((data ?? []) as Physician[])
+      .filter((physician) => physicianNeedsEmail(physician, options))
+      .slice(0, limit);
   }
 
-  async countMissingEmail(discoveredSince?: string): Promise<number> {
-    return (await this.listMissingEmail(500, discoveredSince)).length;
+  async countMissingEmail(
+    discoveredSince?: string,
+    options?: { overwrite?: boolean }
+  ): Promise<number> {
+    return (await this.listMissingEmail(500, discoveredSince, options)).length;
   }
 
   async getExistingNpiSet(npis: string[]): Promise<Set<string>> {

@@ -174,7 +174,18 @@ export class ResearchService {
     }
 
     logger.info("Research batch complete", { processed: results.length, completed, failed });
-    const remaining = await this.physicianRepo.countNeedsScoring(options.discoveredSince);
+
+    let remaining: number;
+    if (options.physicianIds?.length) {
+      const pool = await Promise.all(
+        options.physicianIds.map((id) => this.physicianRepo.findById(id))
+      );
+      remaining = pool.filter(
+        (physician): physician is Physician => physician !== null && physicianNeedsScoring(physician)
+      ).length;
+    } else {
+      remaining = await this.physicianRepo.countNeedsScoring(options.discoveredSince);
+    }
     return {
       processed: results.length,
       completed,

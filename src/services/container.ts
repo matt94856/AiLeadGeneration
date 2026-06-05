@@ -38,8 +38,6 @@ export interface ServiceContainer {
   cms: CmsService;
 }
 
-let cachedContainer: ServiceContainer | null = null;
-
 export function createContainer(supabase: SupabaseClient): ServiceContainer {
   const npi = new NpiService();
   const cms = new CmsService();
@@ -79,13 +77,10 @@ export function createContainer(supabase: SupabaseClient): ServiceContainer {
   };
 }
 
+/** Always binds to the provided Supabase client (webhook service role vs dashboard auth). */
 export function getContainer(supabase: SupabaseClient): ServiceContainer {
-  if (!cachedContainer) {
-    cachedContainer = createContainer(supabase);
-  }
-  return cachedContainer;
+  return createContainer(supabase);
 }
 
-export function resetContainer(): void {
-  cachedContainer = null;
-}
+/** Kept for call sites that reset between background tasks; container is no longer cached. */
+export function resetContainer(): void {}

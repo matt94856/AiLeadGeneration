@@ -36,8 +36,17 @@ export function physicianNeedsScoring(physician: Physician): boolean {
   return physician.lead_score === 0;
 }
 
-export function physicianNeedsEmail(physician: Physician): boolean {
-  return !physician.email?.trim();
+export function physicianNeedsEmail(
+  physician: Physician,
+  options?: { overwrite?: boolean }
+): boolean {
+  if (physician.email?.trim()) return false;
+  if (options?.overwrite) return true;
+
+  const enrichment = physician.research_metadata?.email_enrichment as
+    | { enriched_at?: string }
+    | undefined;
+  return !enrichment?.enriched_at;
 }
 
 export function hasAiFoundEmail(physician: Physician): boolean {
