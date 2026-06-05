@@ -1,11 +1,18 @@
 import { DEFAULT_BATCH_CHUNK } from "@/lib/batch-config";
+import {
+  extractEmailsFromText,
+  rankOfficialUrls,
+  scoreEmailForPhysician,
+} from "@/lib/email-extract";
 import { logger } from "@/lib/logger";
 import { sleep } from "@/lib/utils";
 import type { IOpenAIService } from "@/services/openai/openai.service";
 import type { ISerperService } from "@/services/serper/serper.service";
+import type { SerperOrganicResult } from "@/services/serper/serper.service";
 import type { PhysicianRepository } from "@/repositories/physician.repository";
 import type { Physician } from "@/types";
 import type { EmailEnrichmentResult } from "@/services/enrichment/types";
+import { fetchPages } from "@/services/enrichment/page-fetch.service";
 
 export interface EnrichBatchOptions {
   limit?: number;
@@ -26,6 +33,11 @@ export interface EnrichBatchResult {
   results: EmailEnrichmentResult[];
 }
 
+interface ResearchContext {
+  current_employer?: string | null;
+  hospital_affiliations?: string[];
+}
+
 export class EmailEnrichmentService {
   constructor(
     private readonly physicians: PhysicianRepository,
@@ -33,25 +45,84 @@ export class EmailEnrichmentService {
     private readonly serper: ISerperService
   ) {}
 
-  buildSearchQuery(physician: Physician): string {
-    const parts = [
-      "Dr",
-      physician.first_name,
-      physician.last_name,
-      physician.subspecialty ?? physician.specialty,
+  buildSearchQueries(physician: Physician, research?: ResearchContext | null): string[] {
+    const employer =
+      research?.current_employer?.trim() ||
+      physician.organization?.trim() ||
+      undefined;
+    const affiliations = (research?.hospital_affiliations ?? []).filter(Boolean);
+
+    const queries = [
+      `"${physician.first_name} ${physician.last_name}" cardiologist ${physician.city ?? ""} ${physician.state ?? ""} email`,
+      `"Dr ${physician.first_name} ${physician.last_name}" ${employer ?? "cardiology"} physician contact`,
+      physician.npi
+        ? `"${physician.last_name}" NPI ${physician.npi} cardiologist`
+        : `"${physician.first_name} ${physician.last_name}" cardiologist directory`,
+    ];
+
+    if (employer) {
+      queries.push(`"${physician.first_name} ${physician.last_name}" "${employer}" email`);
+    }
+
+    for (const hospital of affiliations.slice(0, 2)) {
+      queries.push(`"${physician.first_name} ${physician.last_name}" "${hospital}" physician`);
+    }
+
+    return [...new Set(queries.map((q) => q.replace(/\s+/g, " ").trim()))].slice(0, 5);
+  }
+
+  private buildSnippetBlocks(
+    organic: SerperOrganicResult[],
+    pageTexts: { url: string; text: string }[]
+  ): string[] {
+    const blocks: string[] = [];
+
+    for (const row of organic.slice(0, 12)) {
+      blocks.push(`[Search result]\nTitle: ${row.title}\nURL: ${row.link}\nSnippet: ${row.snippet}`);
+    }
+
+    for (const page of pageTexts) {
+      blocks.push(`[Fetched page]\nURL: ${page.url}\nContent: ${page.text}`);
+    }
+
+    return blocks;
+  }
+
+  private rankRegexCandidates(
+    emails: string[],
+    physician: Physician,
+    research?: ResearchContext | null
+  ): string[] {
+    const orgs = [
       physician.organization,
-      physician.city,
-      physician.state,
-      "email contact",
-    ].filter(Boolean);
-    return parts.join(" ");
+      research?.current_employer,
+      ...(research?.hospital_affiliations ?? []),
+    ].filter((v): v is string => Boolean(v?.trim()));
+
+    return [...emails]
+      .sort(
+        (a, b) =>
+          scoreEmailForPhysician(b, {
+            last_name: physician.last_name,
+            first_name: physician.first_name,
+            organizations: orgs,
+          }) -
+          scoreEmailForPhysician(a, {
+            last_name: physician.last_name,
+            first_name: physician.first_name,
+            organizations: orgs,
+          })
+      )
+      .slice(0, 15);
   }
 
   async enrichPhysician(
     physician: Physician,
     options?: { overwrite?: boolean }
   ): Promise<EmailEnrichmentResult> {
-    const searchQuery = this.buildSearchQuery(physician);
+    const research = (await this.physicians.getResearch(physician.id)) as ResearchContext | null;
+    const queries = this.buildSearchQueries(physician, research);
+    const searchQuery = queries[0] ?? "";
 
     if (physician.email?.trim() && !options?.overwrite) {
       return {
@@ -66,46 +137,64 @@ export class EmailEnrichmentService {
     }
 
     try {
-      let snippets: string[] = [];
+      let organic: SerperOrganicResult[] = [];
       if (this.serper.isConfigured()) {
-        const search = await this.serper.search(searchQuery);
-        snippets = search.organic.map(
-          (r) => `Title: ${r.title}\nURL: ${r.link}\nSnippet: ${r.snippet}`
-        );
+        organic = await this.serper.searchMany(queries);
       }
+
+      const urlsToFetch = rankOfficialUrls(
+        organic.map((r) => r.link),
+        3
+      );
+      const fetchedPages = await fetchPages(urlsToFetch, 3);
+
+      const snippetBlocks = this.buildSnippetBlocks(organic, fetchedPages);
+      const allText = [
+        ...organic.map((r) => `${r.title} ${r.snippet}`),
+        ...fetchedPages.map((p) => p.text),
+      ].join("\n");
+
+      const regexCandidates = this.rankRegexCandidates(
+        extractEmailsFromText(allText),
+        physician,
+        research
+      );
 
       const extraction = await this.openai.extractProfessionalEmail({
         first_name: physician.first_name,
         last_name: physician.last_name,
         specialty: physician.specialty,
-        organization: physician.organization,
+        organization: research?.current_employer ?? physician.organization,
         city: physician.city,
         state: physician.state,
         npi: physician.npi,
         website: physician.website,
-        searchSnippets: snippets,
+        searchSnippets: snippetBlocks,
+        regexCandidates,
       });
+
+      const enrichmentMeta = {
+        confidence: extraction.confidence,
+        source_url: extraction.source_url,
+        evidence: extraction.evidence,
+        search_query: searchQuery,
+        search_queries: queries,
+        pages_fetched: fetchedPages.map((p) => p.url),
+        regex_candidates: regexCandidates,
+        enriched_at: new Date().toISOString(),
+      };
 
       if (
         extraction.email &&
         extraction.confidence !== "none" &&
         extraction.confidence !== "low"
       ) {
-        const metadata = {
-          ...(physician.research_metadata ?? {}),
-          email_enrichment: {
-            confidence: extraction.confidence,
-            source_url: extraction.source_url,
-            evidence: extraction.evidence,
-            search_query: searchQuery,
-            enriched_at: new Date().toISOString(),
-            ai_suggested: true,
-          },
-        };
-
         await this.physicians.update(physician.id, {
           email: extraction.email,
-          research_metadata: metadata,
+          research_metadata: {
+            ...(physician.research_metadata ?? {}),
+            email_enrichment: { ...enrichmentMeta, ai_suggested: true },
+          },
         });
 
         return {
@@ -119,17 +208,16 @@ export class EmailEnrichmentService {
         };
       }
 
-      const metadata = {
-        ...(physician.research_metadata ?? {}),
-        email_enrichment: {
-          confidence: extraction.confidence,
-          evidence: extraction.evidence ?? "No public email found",
-          search_query: searchQuery,
-          enriched_at: new Date().toISOString(),
-          ai_suggested: false,
+      await this.physicians.update(physician.id, {
+        research_metadata: {
+          ...(physician.research_metadata ?? {}),
+          email_enrichment: {
+            ...enrichmentMeta,
+            ai_suggested: false,
+            evidence: extraction.evidence ?? "No public email found",
+          },
         },
-      };
-      await this.physicians.update(physician.id, { research_metadata: metadata });
+      });
 
       return {
         physician_id: physician.id,
@@ -184,7 +272,7 @@ export class EmailEnrichmentService {
       else if (result.status === "skipped_has_email") skipped++;
       else if (result.status === "error") errors++;
 
-      await sleep(400);
+      await sleep(600);
     }
 
     logger.info("Email enrichment batch complete", {

@@ -21,6 +21,7 @@ export interface EmailExtractionInput {
   npi?: string | null;
   website?: string | null;
   searchSnippets: string[];
+  regexCandidates?: string[];
 }
 
 export interface EmailExtractionOutput {

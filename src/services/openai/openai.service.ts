@@ -161,19 +161,25 @@ Return JSON: { "subject": "...", "body": "..." } (subject optional for non-email
     const snippetsBlock =
       input.searchSnippets.length > 0
         ? input.searchSnippets.join("\n---\n")
-        : "No web search results available. Return confidence none unless email explicitly appears in physician website field.";
+        : "No web search results or page content available.";
+
+    const regexBlock =
+      input.regexCandidates && input.regexCandidates.length > 0
+        ? input.regexCandidates.join("\n")
+        : "None";
 
     const completion = await client.chat.completions.create({
       model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You extract ONLY publicly listed professional/work email addresses for physicians from search snippets.
+          content: `You verify publicly listed professional/work email addresses for a specific physician.
 
 STRICT RULES:
 - NEVER invent or guess emails (no firstname.lastname@domain pattern guessing).
-- Only return an email if it literally appears in the snippets or website field, or is clearly listed on an official hospital/practice page in the snippets.
-- Prefer hospital, clinic, or academic emails over personal Gmail/Yahoo unless that is their only listed professional contact.
+- Only return an email if it literally appears in the snippets, fetched page content, regex candidates, or website field.
+- The email must plausibly belong to THIS physician (name or employer match). Reject generic inboxes (info@, contact@, noreply@).
+- Prefer hospital, clinic, or academic emails over personal Gmail/Yahoo when both exist.
 - If uncertain, return email null and confidence "none".
 - Return JSON: { "email": string|null, "confidence": "high"|"medium"|"low"|"none", "source_url": string|null, "evidence": string|null }`,
         },
@@ -186,7 +192,10 @@ Location: ${input.city ?? ""}, ${input.state ?? ""}
 NPI: ${input.npi ?? "N/A"}
 Website: ${input.website ?? "N/A"}
 
-Public search snippets:
+Emails found in page text (verify only — do not invent):
+${regexBlock}
+
+Search snippets and fetched page content:
 ${snippetsBlock}`,
         },
       ],

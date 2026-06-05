@@ -40,15 +40,26 @@ describe("EmailEnrichmentService", () => {
         {
           title: "Dr Jane Doe - Bay Heart",
           link: "https://bayheart.org/team/jane-doe",
-          snippet: "Contact: jane.doe@bayheart.org",
+          snippet: "Cardiology team member",
         },
       ],
     })),
+    searchMany: vi.fn(async () => [
+      {
+        title: "Dr Jane Doe - Bay Heart",
+        link: "https://bayheart.org/team/jane-doe",
+        snippet: "Cardiology team member",
+      },
+    ]),
   };
   const physicians = {
     update: vi.fn(async () => physician),
     listMissingEmail: vi.fn(),
     findById: vi.fn(),
+    getResearch: vi.fn(async () => ({
+      current_employer: "Bay Heart",
+      hospital_affiliations: ["Regional Medical Center"],
+    })),
   };
 
   beforeEach(() => {
@@ -59,6 +70,24 @@ describe("EmailEnrichmentService", () => {
       source_url: "https://bayheart.org/team/jane-doe",
       evidence: "Listed on hospital team page",
     });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo) => {
+        const url = String(input);
+        if (url.includes("bayheart.org")) {
+          return {
+            ok: true,
+            headers: { get: () => "text/html" },
+            text: async () =>
+              "<html><body>Contact jane.doe@bayheart.org for appointments</body></html>",
+          };
+        }
+        if (url.includes("serper")) {
+          return { ok: true, json: async () => ({ organic: [] }) };
+        }
+        return { ok: false, headers: { get: () => "" }, text: async () => "" };
+      })
+    );
   });
 
   it("finds email from public search snippets", async () => {

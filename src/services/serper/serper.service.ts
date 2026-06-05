@@ -11,6 +11,7 @@ export interface SerperSearchResult {
 export interface ISerperService {
   isConfigured(): boolean;
   search(query: string): Promise<SerperSearchResult>;
+  searchMany(queries: string[]): Promise<SerperOrganicResult[]>;
 }
 
 export class SerperService implements ISerperService {
@@ -40,5 +41,21 @@ export class SerperService implements ISerperService {
 
     const data = (await response.json()) as { organic?: SerperOrganicResult[] };
     return { organic: data.organic ?? [] };
+  }
+
+  async searchMany(queries: string[]): Promise<SerperOrganicResult[]> {
+    const seen = new Set<string>();
+    const merged: SerperOrganicResult[] = [];
+
+    for (const query of queries) {
+      const result = await this.search(query);
+      for (const row of result.organic) {
+        if (seen.has(row.link)) continue;
+        seen.add(row.link);
+        merged.push(row);
+      }
+    }
+
+    return merged;
   }
 }
