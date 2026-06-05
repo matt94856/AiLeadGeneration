@@ -290,14 +290,21 @@ export class EmailEnrichmentService {
       await sleep(350);
     }
 
+    const remaining = await this.physicians.countMissingEmail(options.discoveredSince, {
+      overwrite: options.overwrite,
+    });
+
+    if (results.length === 0 && remaining > 0) {
+      logger.warn("Email enrichment batch had no targets despite remaining leads", {
+        remaining,
+      });
+    }
+
     logger.info("Email enrichment batch complete", {
       processed: results.length,
       found,
       not_found,
-    });
-
-    const remaining = await this.physicians.countMissingEmail(options.discoveredSince, {
-      overwrite: options.overwrite,
+      remaining,
     });
 
     return {
@@ -307,7 +314,7 @@ export class EmailEnrichmentService {
       skipped,
       errors,
       remaining,
-      has_more: remaining > 0,
+      has_more: remaining > 0 && results.length > 0,
       results,
     };
   }

@@ -185,35 +185,53 @@ export class PhysicianRepository {
     return (await this.listNeedsScoring(500, discoveredSince)).length;
   }
 
+  private applyEmailEnrichmentQuery(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query: any,
+    options?: { overwrite?: boolean; discoveredSince?: string }
+  ) {
+    let next = query.or("email.is.null,email.eq.");
+
+    if (!options?.overwrite) {
+      next = next.is("research_metadata->email_enrichment->>enriched_at", null);
+    }
+
+    if (options?.discoveredSince) {
+      next = next.gte("created_at", options.discoveredSince);
+    }
+
+    return next;
+  }
+
   async listMissingEmail(
     limit = 25,
     discoveredSince?: string,
     options?: { overwrite?: boolean }
   ): Promise<Physician[]> {
-    let query = this.supabase
-      .from("physicians")
-      .select("*")
-      .or("email.is.null,email.eq.")
-      .order("lead_score", { ascending: false })
-      .limit(Math.min(limit * 5, 500));
+    let query = this.supabase.from("physicians").select("*");
 
-    if (discoveredSince) {
-      query = query.gte("created_at", discoveredSince);
-    }
+    query = this.applyEmailEnrichmentQuery(query, { ...options, discoveredSince });
+    query = query.order("lead_score", { ascending: false }).limit(limit);
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);
 
-    return ((data ?? []) as Physician[])
-      .filter((physician) => physicianNeedsEmail(physician, options))
-      .slice(0, limit);
+    return ((data ?? []) as Physician[]).filter((physician) =>
+      physicianNeedsEmail(physician, options)
+    );
   }
 
   async countMissingEmail(
     discoveredSince?: string,
     options?: { overwrite?: boolean }
   ): Promise<number> {
-    return (await this.listMissingEmail(500, discoveredSince, options)).length;
+    let query = this.supabase.from("physicians").select("id", { count: "exact", head: true });
+
+    query = this.applyEmailEnrichmentQuery(query, { ...options, discoveredSince });
+
+    const { count, error } = await query;
+    if (error) throw new Error(error.message);
+    return count ?? 0;
   }
 
   async getExistingNpiSet(npis: string[]): Promise<Set<string>> {
