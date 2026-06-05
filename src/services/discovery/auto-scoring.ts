@@ -1,6 +1,6 @@
 import { logger } from "@/lib/logger";
-import { scheduleWebhookContinuation } from "@/lib/webhook-continuation";
 import { DEFAULT_BATCH_CHUNK } from "@/lib/batch-config";
+import { runResearchWebhookBatch } from "@/lib/webhook-batch";
 import type { DiscoveryResult } from "@/services/discovery/discovery.service";
 import type { ServiceContainer } from "@/services/container";
 
@@ -10,7 +10,7 @@ export function collectCreatedPhysicianIds(
   return (Array.isArray(results) ? results : [results]).flatMap((r) => r.createdPhysicianIds);
 }
 
-/** Kick off chained AI scoring (small chunks, auto-continues in background). */
+/** Kick off AI scoring in-process; Vercel Cron continues if more leads remain. */
 export async function runAutoScoringAfterDiscovery(
   container: ServiceContainer,
   results: DiscoveryResult | DiscoveryResult[]
@@ -26,19 +26,7 @@ export async function runAutoScoringAfterDiscovery(
   };
 
   try {
-    if (createdIds.length > 0) {
-      const first = await container.research.researchBatch({
-        limit: DEFAULT_BATCH_CHUNK,
-        physicianIds: createdIds,
-      });
-      if (first.has_more) {
-        scheduleWebhookContinuation("research.batch", payload);
-      }
-      return first;
-    }
-
-    scheduleWebhookContinuation("research.batch", payload);
-    return { status: "queued", message: "Scoring chain started" };
+    return await runResearchWebhookBatch(container, payload);
   } catch (error) {
     logger.error("Auto scoring after discovery failed", {
       error: error instanceof Error ? error.message : "unknown",

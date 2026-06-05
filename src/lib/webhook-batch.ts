@@ -1,5 +1,6 @@
 import type { ServiceContainer } from "@/services/container";
-import { scheduleWebhookContinuation } from "@/lib/webhook-continuation";
+import { BATCH_TIME_BUDGET_MS, MAX_CONTINUATION_DEPTH } from "@/lib/batch-config";
+import { getContinuationDepth } from "@/lib/webhook-continuation";
 import {
   resolveChunkLimit,
   resolveEmailChunkLimit,
@@ -27,7 +28,7 @@ export function buildEmailBatchPayload(data: WebhookBatchData): WebhookBatchData
   };
 }
 
-export async function runResearchWebhookBatch(
+export async function runResearchWebhookBatchSingle(
   container: ServiceContainer,
   data: WebhookBatchData
 ) {
@@ -40,13 +41,10 @@ export async function runResearchWebhookBatch(
       : undefined,
   });
 
-  const continuation_queued =
-    result.has_more && scheduleWebhookContinuation("research.batch", payload);
-
-  return { ...result, continuation_queued };
+  return { ...result, continuation_queued: false };
 }
 
-export async function runEmailWebhookBatch(
+export async function runEmailWebhookBatchSingle(
   container: ServiceContainer,
   data: WebhookBatchData
 ) {
@@ -57,8 +55,67 @@ export async function runEmailWebhookBatch(
     overwrite: Boolean(payload.overwrite),
   });
 
-  const continuation_queued =
-    result.has_more && scheduleWebhookContinuation("enrichment.emails", payload);
+  return { ...result, continuation_queued: false };
+}
 
-  return { ...result, continuation_queued };
+interface BatchLoopOptions {
+  maxMs?: number;
+}
+
+export async function runResearchWebhookBatch(
+  container: ServiceContainer,
+  data: WebhookBatchData,
+  options?: BatchLoopOptions
+) {
+  const maxMs = options?.maxMs ?? BATCH_TIME_BUDGET_MS;
+  const start = Date.now();
+  let currentData = buildResearchBatchPayload(data);
+  let lastResult = await runResearchWebhookBatchSingle(container, currentData);
+  let chunks = 1;
+
+  while (lastResult.has_more && Date.now() - start < maxMs) {
+    const depth = getContinuationDepth(currentData) + 1;
+    if (depth >= MAX_CONTINUATION_DEPTH) break;
+
+    currentData = { ...currentData, _continuation_depth: depth };
+    lastResult = await runResearchWebhookBatchSingle(container, currentData);
+    chunks++;
+  }
+
+  return {
+    ...lastResult,
+    chunks_run: chunks,
+    completed: !lastResult.has_more,
+    cron_will_continue: lastResult.has_more,
+    continuation_queued: lastResult.has_more,
+  };
+}
+
+export async function runEmailWebhookBatch(
+  container: ServiceContainer,
+  data: WebhookBatchData,
+  options?: BatchLoopOptions
+) {
+  const maxMs = options?.maxMs ?? BATCH_TIME_BUDGET_MS;
+  const start = Date.now();
+  let currentData = buildEmailBatchPayload(data);
+  let lastResult = await runEmailWebhookBatchSingle(container, currentData);
+  let chunks = 1;
+
+  while (lastResult.has_more && Date.now() - start < maxMs) {
+    const depth = getContinuationDepth(currentData) + 1;
+    if (depth >= MAX_CONTINUATION_DEPTH) break;
+
+    currentData = { ...currentData, _continuation_depth: depth };
+    lastResult = await runEmailWebhookBatchSingle(container, currentData);
+    chunks++;
+  }
+
+  return {
+    ...lastResult,
+    chunks_run: chunks,
+    completed: !lastResult.has_more,
+    cron_will_continue: lastResult.has_more,
+    continuation_queued: lastResult.has_more,
+  };
 }

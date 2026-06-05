@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       serper_configured: Boolean(process.env.SERPER_API_KEY),
       hint: process.env.SERPER_API_KEY
         ? result.continuation_queued
-          ? "More email lookups continue automatically in the background."
+          ? "More email lookups continue via Vercel Cron every 3 minutes."
           : undefined
         : "Add SERPER_API_KEY (free at serper.dev) for much better email discovery from public web results.",
     });

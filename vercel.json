@@ -1,6 +1,16 @@
 {
   "framework": "nextjs",
   "regions": ["iad1"],
+  "crons": [
+    {
+      "path": "/api/cron/email-enrichment",
+      "schedule": "*/3 * * * *"
+    },
+    {
+      "path": "/api/cron/research-batch",
+      "schedule": "*/5 * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",

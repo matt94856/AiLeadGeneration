@@ -120,7 +120,7 @@ Scoring processes **12 physicians per background chunk**; email enrichment uses 
 
 n8n only needs **one** HTTP call per step. The response returns immediately with `status: "started"`; work continues in the background and auto-chains until `remaining` is 0.
 
-Set **APP_URL** in Vercel (e.g. `https://ai-lead-generation-pink.vercel.app`) so auto-continuation can call back into your app.
+Set **CRON_SECRET** in Vercel (any random string). Vercel Cron runs `/api/cron/email-enrichment` every 3 minutes and `/api/cron/research-batch` every 5 minutes to continue batch work. Self-HTTP continuation is disabled because Vercel returns `508 INFINITE_LOOP_DETECTED`.
 
 ### Optional: today-only scope
 
@@ -164,7 +164,8 @@ Email sends from **GMAIL_USER** via Gmail SMTP. Activity is logged on the physic
 | No email on file | Add email on physician profile |
 | n8n 401 | `x-webhook-secret` must match Vercel `WEBHOOK_SECRET` |
 | n8n runs but no leads | Check Vercel function logs; try `state` with data (e.g. `FL`) |
-| **AI find emails → Gateway timed out** | Re-import workflow JSON (limit `4`, timeout `120000`). Ensure `APP_URL` is set on Vercel. Response is instant; work runs in background. |
+| **AI find emails → Gateway timed out** | Re-import workflow JSON (limit `4`, timeout `120000`). Response is instant; work runs in background. |
+| **508 INFINITE_LOOP_DETECTED in Vercel logs** | Expected with old self-HTTP continuation. Deploy latest code + set `CRON_SECRET`; cron routes continue batches instead. |
 | `DEP0169 url.parse()` warning | Harmless Node.js deprecation from n8n or a dependency — safe to ignore. |
 | Gmail auth failed | Regenerate App Password; no spaces in env var |
 | Email in spam | Normal for cold outreach — warm up domain / use professional copy |
