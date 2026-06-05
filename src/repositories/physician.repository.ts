@@ -207,6 +207,33 @@ export class PhysicianRepository {
     return (await this.listMissingEmail(500, discoveredSince)).length;
   }
 
+  async getExistingNpiSet(npis: string[]): Promise<Set<string>> {
+    if (!npis.length) return new Set();
+    const { data, error } = await this.supabase
+      .from("physicians")
+      .select("npi")
+      .in("npi", npis);
+    if (error) throw new Error(error.message);
+    return new Set(
+      (data ?? [])
+        .map((row) => row.npi as string | null)
+        .filter((npi): npi is string => Boolean(npi))
+    );
+  }
+
+  async listRandomWithNpi(limit: number): Promise<Physician[]> {
+    const { data, error } = await this.supabase
+      .from("physicians")
+      .select("*")
+      .not("npi", "is", null)
+      .order("updated_at", { ascending: true })
+      .limit(Math.min(limit * 3, 600));
+
+    if (error) throw new Error(error.message);
+    const pool = (data ?? []) as Physician[];
+    return shuffleArray(pool).slice(0, limit);
+  }
+
   async saveResearch(
     physicianId: string,
     research: {
@@ -239,4 +266,17 @@ export class PhysicianRepository {
     if (error) throw new Error(error.message);
     return data;
   }
+}
+
+function shuffleArray<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const a = copy[i];
+    const b = copy[j];
+    if (a === undefined || b === undefined) continue;
+    copy[i] = b;
+    copy[j] = a;
+  }
+  return copy;
 }

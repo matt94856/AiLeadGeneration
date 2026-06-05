@@ -9,6 +9,7 @@ import {
 } from "@/services/discovery/adapters";
 import type { DataSourceAdapter } from "@/services/types";
 import { DiscoveryService } from "@/services/discovery/discovery.service";
+import { UsGrowthDiscoveryService } from "@/services/discovery/us-growth-discovery.service";
 import { NpiService } from "@/services/npi/npi.service";
 import { MockOpenAIService, OpenAIService } from "@/services/openai/openai.service";
 import type { IOpenAIService } from "@/services/openai/openai.service";
@@ -17,6 +18,7 @@ import { DashboardRepository } from "@/repositories/dashboard.repository";
 import { OutreachRepository } from "@/repositories/outreach.repository";
 import { PhysicianRepository } from "@/repositories/physician.repository";
 import { ScoringRepository } from "@/repositories/scoring.repository";
+import { DiscoveryProgressRepository } from "@/repositories/discovery-progress.repository";
 import { ResearchService } from "@/services/research/research.service";
 import { SerperService } from "@/services/serper/serper.service";
 import { EmailEnrichmentService } from "@/services/enrichment/email-enrichment.service";
@@ -28,6 +30,7 @@ export interface ServiceContainer {
   outreach: OutreachRepository;
   dashboard: DashboardRepository;
   discovery: DiscoveryService;
+  usGrowthDiscovery: UsGrowthDiscoveryService;
   research: ResearchService;
   emailEnrichment: EmailEnrichmentService;
   openai: IOpenAIService;
@@ -58,6 +61,7 @@ export function createContainer(supabase: SupabaseClient): ServiceContainer {
   const outreach = new OutreachRepository(supabase);
   const dashboard = new DashboardRepository(supabase);
   const serper = new SerperService();
+  const discoveryProgress = new DiscoveryProgressRepository(supabase);
 
   return {
     physicians,
@@ -66,6 +70,7 @@ export function createContainer(supabase: SupabaseClient): ServiceContainer {
     outreach,
     dashboard,
     discovery: new DiscoveryService(adapters, physicians),
+    usGrowthDiscovery: new UsGrowthDiscoveryService(npi, physicians, discoveryProgress),
     research: new ResearchService(physicians, scoring, openai),
     emailEnrichment: new EmailEnrichmentService(physicians, openai, serper),
     openai,

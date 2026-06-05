@@ -11,6 +11,9 @@ export interface DiscoveryResult {
   created: number;
   updated: number;
   createdPhysicianIds: string[];
+  mode?: string;
+  pages_scanned?: number;
+  refresh_target?: number;
 }
 
 export class DiscoveryService {

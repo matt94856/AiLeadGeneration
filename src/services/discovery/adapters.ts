@@ -9,11 +9,13 @@ export class NpiRegistryAdapter implements DataSourceAdapter {
   constructor(private readonly npiService: NpiService) {}
 
   async collect(params: Record<string, string>): Promise<NormalizedPhysicianInput[]> {
-    return this.npiService.searchCardiologists({
+    const response = await this.npiService.searchCardiologists({
       state: params.state,
       city: params.city,
       limit: params.limit ? parseInt(params.limit, 10) : 50,
+      skip: params.skip ? parseInt(params.skip, 10) : undefined,
     });
+    return response.results;
   }
 }
 

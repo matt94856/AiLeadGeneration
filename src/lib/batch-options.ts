@@ -5,6 +5,7 @@ export interface WebhookBatchData extends Record<string, unknown> {
   today_only?: boolean;
   all_pending?: boolean;
   physician_ids?: string[];
+  us_wide?: boolean;
   physician_id?: string;
   overwrite?: boolean;
   _continuation_depth?: number;

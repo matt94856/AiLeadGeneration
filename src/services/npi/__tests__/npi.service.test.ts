@@ -39,7 +39,8 @@ describe("NpiService", () => {
     );
 
     const service = new NpiService("https://test.api");
-    const results = await service.searchCardiologists({ state: "FL", limit: 1 });
+    const response = await service.searchCardiologists({ state: "FL", limit: 1 });
+    const results = response.results;
 
     expect(results).toHaveLength(1);
     expect(results[0]?.npi).toBe("1234567893");

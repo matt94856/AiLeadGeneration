@@ -52,8 +52,16 @@ export async function POST(request: Request) {
         if (data.city) params.city = String(data.city);
         if (data.limit) params.limit = String(data.limit);
 
+        const usWide =
+          data.us_wide === true ||
+          (!data.state && String(data.source ?? "npi_registry") === "npi_registry");
+
         let discoveryResult;
-        if (data.source) {
+        if (usWide) {
+          discoveryResult = await container.usGrowthDiscovery.run({
+            targetNew: data.limit ? Number(data.limit) : 200,
+          });
+        } else if (data.source) {
           discoveryResult = await container.discovery.runDiscovery(String(data.source), params);
         } else {
           discoveryResult = await container.discovery.runAllSources(params);

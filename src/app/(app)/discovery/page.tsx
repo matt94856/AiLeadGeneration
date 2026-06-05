@@ -15,8 +15,9 @@ import {
 
 export default function DiscoveryPage() {
   const [sources, setSources] = useState<string[]>([]);
-  const [source, setSource] = useState<string>("all");
-  const [state, setState] = useState("FL");
+  const [source, setSource] = useState<string>("npi_registry");
+  const [usWide, setUsWide] = useState(true);
+  const [state, setState] = useState("");
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -36,14 +37,18 @@ export default function DiscoveryPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         source: source === "all" ? undefined : source,
-        state,
+        us_wide: usWide && source === "npi_registry",
+        state: usWide ? undefined : state || undefined,
+        limit: 200,
         runAll: source === "all",
       }),
     });
     const json = await res.json();
     if (json.success) {
+      const r = Array.isArray(json.data.results) ? json.data.results[0] : json.data.results;
+      const mode = r?.mode ? ` · mode: ${r.mode}` : "";
       setResult(
-        `Found ${json.data.totals.found}, created ${json.data.totals.created}, updated ${json.data.totals.updated}`
+        `Found ${json.data.totals.found}, created ${json.data.totals.created}, updated ${json.data.totals.updated}${mode}`
       );
     } else {
       setResult(json.error?.message ?? "Discovery failed");
@@ -64,14 +69,14 @@ export default function DiscoveryPage() {
       <div>
         <h1 className="text-2xl font-bold">Lead Discovery</h1>
         <p className="text-muted-foreground text-sm">
-          Collect cardiologist leads from public data sources only
+          Grow a national cardiologist database — new NPIs first, refresh existing only when the US scan finds no new leads
         </p>
       </div>
       <Card className="max-w-lg">
         <CardHeader>
           <CardTitle>Run collector</CardTitle>
           <CardDescription>
-            Data is normalized, deduplicated, and scored automatically. No verified personal emails from public APIs.
+            US-wide mode rotates through every state, up to 200 new cardiologists per run. Existing records are skipped until no new NPIs remain.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -82,19 +87,40 @@ export default function DiscoveryPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="npi_registry">NPI Registry (recommended)</SelectItem>
                 <SelectItem value="all">All sources</SelectItem>
-                {sources.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {sourceLabels[s] ?? s}
-                  </SelectItem>
-                ))}
+                {sources
+                  .filter((s) => s !== "npi_registry")
+                  .map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {sourceLabels[s] ?? s}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label htmlFor="state">State (optional)</Label>
-            <Input id="state" value={state} onChange={(e) => setState(e.target.value)} maxLength={2} />
-          </div>
+          {source === "npi_registry" && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={usWide}
+                onChange={(e) => setUsWide(e.target.checked)}
+              />
+              US-wide growth (all states, new leads only)
+            </label>
+          )}
+          {source === "npi_registry" && !usWide && (
+            <div>
+              <Label htmlFor="state">State</Label>
+              <Input
+                id="state"
+                placeholder="FL"
+                value={state}
+                onChange={(e) => setState(e.target.value.toUpperCase())}
+                maxLength={2}
+              />
+            </div>
+          )}
           <Button onClick={runDiscovery} disabled={loading}>
             {loading ? "Running…" : "Start discovery"}
           </Button>

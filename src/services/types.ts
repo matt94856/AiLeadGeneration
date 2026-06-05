@@ -12,6 +12,7 @@ export interface NpiSearchParams {
   first_name?: string;
   last_name?: string;
   limit?: number;
+  skip?: number;
 }
 
 export interface OpenAIResearchInput {

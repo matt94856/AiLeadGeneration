@@ -38,7 +38,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"event\": \"discovery.run\",\n  \"data\": {\n    \"source\": \"npi_registry\",\n    \"state\": \"FL\",\n    \"limit\": \"200\"\n  }\n}"
+        "jsonBody": "{\n  \"event\": \"discovery.run\",\n  \"data\": {\n    \"source\": \"npi_registry\",\n    \"us_wide\": true,\n    \"limit\": \"200\"\n  }\n}"
       },
       "id": "http-discovery",
       "name": "Run lead discovery",
