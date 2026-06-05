@@ -112,7 +112,7 @@ export async function POST(request: Request) {
           status: "started",
           chunk_limit: resolveChunkLimit(payload),
           continuation: "auto",
-          message: "Scoring runs in background; Vercel Cron continues until complete.",
+          message: "Scoring runs in background; re-trigger or use n8n schedule until complete.",
         };
         break;
       }
@@ -151,7 +151,7 @@ export async function POST(request: Request) {
           status: "started",
           chunk_limit: resolveEmailChunkLimit(payload),
           continuation: "auto",
-          message: "Email enrichment runs in background; Vercel Cron continues until complete.",
+          message: "Email enrichment runs in background; n8n every-30-min workflow continues until complete.",
         };
         break;
       }

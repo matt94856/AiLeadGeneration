@@ -1,0 +1,77 @@
+{
+  "name": "CardioLocums — Email Enrichment Continuation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-every-30min",
+      "name": "Every 30 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "notesInFlow": true,
+      "notes": "Hobby Vercel cannot run cron more than once/day — n8n continues email enrichment instead."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ai-lead-generation-pink.vercel.app/api/webhooks/n8n",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-webhook-secret",
+              "value": "YOUR_WEBHOOK_SECRET"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"event\": \"enrichment.emails\",\n  \"data\": {\n    \"all_pending\": true,\n    \"limit\": 4\n  }\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "http-email-chunk",
+      "name": "Process email chunk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, 0],
+      "notesInFlow": true,
+      "notes": "Returns instantly; app processes up to ~52s of leads in background per call."
+    }
+  ],
+  "connections": {
+    "Every 30 minutes": {
+      "main": [
+        [
+          {
+            "node": "Process email chunk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {}
+}
