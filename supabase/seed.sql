@@ -127,3 +127,49 @@ FROM physicians p WHERE p.npi = '1234567892';
 INSERT INTO follow_up_recommendations (physician_id, recommendation, priority, reasoning, suggested_action_date)
 SELECT p.id, 'Follow up in 7 days', 'medium', 'Research phase complete — schedule qualification call', CURRENT_DATE + 7
 FROM physicians p WHERE p.npi = '1234567891';
+
+-- Spam/inbox test physician (your email — safe to delete after testing)
+INSERT INTO physicians (
+  npi, first_name, last_name, specialty, subspecialty, city, state,
+  organization, years_in_practice, email, source, lead_score, status,
+  physician_summary, research_metadata, scoring_factors
+) VALUES (
+  'TEST9999001',
+  'Matthew',
+  'TestPhysician',
+  'Cardiology',
+  'Interventional Cardiology',
+  'Tampa',
+  'FL',
+  'Bay Heart Institute',
+  14,
+  'mattf94856@gmail.com',
+  'manual_test',
+  78,
+  'qualified',
+  'Interventional cardiologist in Tampa with academic hospital affiliations. Active in regional TAVR programs. Prior locums experience noted.',
+  '{"scoring_status": "complete"}'::jsonb,
+  '{"prior_locums_indicators": true, "active_publications": true, "conference_participation": true}'::jsonb
+)
+ON CONFLICT (npi) DO UPDATE SET
+  email = EXCLUDED.email,
+  first_name = EXCLUDED.first_name,
+  last_name = EXCLUDED.last_name,
+  lead_score = EXCLUDED.lead_score,
+  physician_summary = EXCLUDED.physician_summary,
+  updated_at = NOW();
+
+INSERT INTO physician_research (physician_id, current_employer, practice_size, hospital_affiliations, publications, conference_participation)
+SELECT
+  p.id,
+  'Bay Heart Institute',
+  'Large (50+)',
+  '["Tampa General Hospital", "Regional Medical Center"]'::jsonb,
+  '[{"title": "Outcomes in structural heart interventions", "year": 2024}]'::jsonb,
+  '[{"name": "ACC Annual Scientific Session", "year": 2024, "role": "Speaker"}]'::jsonb
+FROM physicians p
+WHERE p.npi = 'TEST9999001'
+ON CONFLICT (physician_id) DO UPDATE SET
+  current_employer = EXCLUDED.current_employer,
+  hospital_affiliations = EXCLUDED.hospital_affiliations,
+  researched_at = NOW();
