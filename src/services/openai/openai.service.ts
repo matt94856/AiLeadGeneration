@@ -1,10 +1,10 @@
 import OpenAI from "openai";
 import { logger } from "@/lib/logger";
+import { getRecruiterProfile } from "@/lib/recruiter-profile";
 import {
-  getRecruiterProfile,
-  formatRecruiterPromptBlock,
-  getOutreachPlaceholderRules,
-} from "@/lib/recruiter-profile";
+  buildOutreachUserPrompt,
+  getOutreachSystemPrompt,
+} from "@/lib/outreach-prompts";
 import type {
   OpenAIResearchInput,
   OpenAIResearchOutput,
@@ -84,42 +84,24 @@ Respond in JSON with keys: physician_summary (2-4 sentences), current_employer, 
   ): Promise<{ subject?: string; body: string }> {
     const client = this.ensureClient();
     const recruiter = getRecruiterProfile();
-    const channelInstructions = {
-      email:
-        "Write a professional email (subject + body). Under 200 words. CAN-SPAM compliant. Include recruiter email and website in the signature.",
-      linkedin:
-        "Write a concise LinkedIn connection/InMail message under 100 words. Sign with the recruiter's first name.",
-      voicemail:
-        "Write a 30-45 second voicemail script. State the recruiter's full name and callback phone number clearly.",
-    };
 
     const completion = await client.chat.completions.create({
       model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You draft outreach for ${recruiter.fullName}, a ${recruiter.title} at ${recruiter.website}. Messages require human review before sending. Be compliant, respectful, and never pressure physicians.
-
-${getOutreachPlaceholderRules(recruiter)}`,
+          content: getOutreachSystemPrompt(recruiter),
         },
         {
           role: "user",
-          content: `${channelInstructions[input.channel]}
-
-${formatRecruiterPromptBlock(recruiter)}
-
-Physician: Dr. ${input.physician.first_name} ${input.physician.last_name}
-Specialty: ${input.physician.specialty}${input.physician.subspecialty ? ` (${input.physician.subspecialty})` : ""}
-Location: ${input.physician.city ?? ""}, ${input.physician.state ?? ""}
-Organization: ${input.physician.organization ?? "N/A"}
-Summary: ${input.physician.physician_summary ?? "N/A"}
-Opportunity notes: ${input.opportunityNotes ?? "Flexible locum cardiology coverage"}
-
-Return JSON: { "subject": "...", "body": "..." } (subject optional for non-email).`,
+          content: buildOutreachUserPrompt(recruiter, input.physician, input.channel, {
+            opportunityNotes: input.opportunityNotes,
+            research: input.research,
+          }),
         },
       ],
       response_format: { type: "json_object" },
-      temperature: 0.5,
+      temperature: 0.78,
     });
 
     const content = completion.choices[0]?.message?.content;
@@ -239,15 +221,18 @@ export class MockOpenAIService implements IOpenAIService {
   async generateOutreachDraft(input: OutreachDraftInput) {
     const r = getRecruiterProfile();
     const name = `Dr. ${input.physician.first_name} ${input.physician.last_name}`;
+    const place = input.physician.city ?? input.physician.state ?? "your area";
+    const employer =
+      input.research?.current_employer ?? input.physician.organization ?? "your practice";
     if (input.channel === "email") {
       return {
-        subject: `Locum cardiology opportunity — ${input.physician.state ?? "US"}`,
-        body: `Dear ${name},\n\nI hope this message finds you well. My name is ${r.fullName}, and I'm a ${r.title}. I'm reaching out regarding flexible locum tenens cardiology opportunities that may align with your practice in ${input.physician.city ?? "your area"}.\n\nI'd welcome a brief conversation at your convenience.\n\nBest regards,\n${r.fullName}\n${r.email}\n${r.phone}\n${r.website}`,
+        subject: `${place} cardiology — quick question`,
+        body: `${name} — your work at ${employer} caught my eye.\n\nI'm ${r.fullName} (${r.website}) and I place cardiologists on locums nationwide — not the usual blast-and-pray stuff.\n\nWould you be opposed to a quick chat about coverage near ${place}, or elsewhere in the U.S. if that's more your speed? A simple "not opposed" is plenty — or tell me to buzz off.\n\n${r.fullName.split(" ")[0] ?? r.fullName}\n${r.email} · ${r.phone}\n${r.website}`,
       };
     }
     if (input.channel === "linkedin") {
       return {
-        body: `Hi ${name}, I'm ${r.fullName} with Locum Career Hub (${r.website}). I help cardiologists find locum opportunities in ${input.physician.state ?? "several states"}. Would you be open to a brief connect?`,
+        body: `Hi ${name}, I'm ${r.fullName} with Locum Career Hub (${r.website}). I help cardiologists find locums in ${input.physician.state ?? "their region"} and across the U.S. Would you be opposed to a quick connect?`,
       };
     }
     return {

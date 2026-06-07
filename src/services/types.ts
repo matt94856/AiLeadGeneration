@@ -1,4 +1,4 @@
-import type { NormalizedPhysicianInput } from "@/types";
+import type { NormalizedPhysicianInput, Physician } from "@/types";
 
 export interface DataSourceAdapter {
   readonly sourceId: string;
@@ -36,17 +36,17 @@ export interface OpenAIResearchOutput {
   lead_score?: number;
 }
 
+export interface OutreachResearchContext {
+  current_employer?: string | null;
+  practice_size?: string | null;
+  hospital_affiliations?: string[];
+  publications?: Array<{ title?: string; year?: number }>;
+  conference_participation?: Array<{ name?: string; year?: number; role?: string }>;
+}
+
 export interface OutreachDraftInput {
-  physician: {
-    first_name: string;
-    last_name: string;
-    specialty: string;
-    subspecialty?: string | null;
-    city?: string | null;
-    state?: string | null;
-    organization?: string | null;
-    physician_summary?: string | null;
-  };
+  physician: Physician;
+  research?: OutreachResearchContext | null;
   channel: "email" | "linkedin" | "voicemail";
   opportunityNotes?: string;
 }

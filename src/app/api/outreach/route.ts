@@ -27,8 +27,19 @@ export async function POST(request: Request) {
     const physician = await container.physicians.findById(body.physician_id);
     if (!physician) return jsonError("Physician not found", 404);
 
+    const research = await container.physicians.getResearch(body.physician_id);
+
     const draft = await container.openai.generateOutreachDraft({
       physician,
+      research: research
+        ? {
+            current_employer: research.current_employer,
+            practice_size: research.practice_size,
+            hospital_affiliations: research.hospital_affiliations,
+            publications: research.publications,
+            conference_participation: research.conference_participation,
+          }
+        : null,
       channel: body.channel,
       opportunityNotes: body.opportunityNotes,
     });
