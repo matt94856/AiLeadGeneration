@@ -4,7 +4,13 @@ import { LeadScoreBadge } from "@/components/physicians/lead-score-badge";
 import { hasAiFoundEmail } from "@/lib/scoring-status";
 import type { Physician } from "@/types";
 
-export function PhysicianTable({ physicians }: { physicians: Physician[] }) {
+export function PhysicianTable({
+  physicians,
+  openInNewTab = false,
+}: {
+  physicians: Physician[];
+  openInNewTab?: boolean;
+}) {
   if (!physicians.length) {
     return <p className="text-muted-foreground text-sm py-8 text-center">No physicians found.</p>;
   }
@@ -26,7 +32,13 @@ export function PhysicianTable({ physicians }: { physicians: Physician[] }) {
           {physicians.map((p) => (
             <tr key={p.id} className="border-b hover:bg-muted/30">
               <td className="p-3">
-                <Link href={`/physicians/${p.id}`} className="font-medium hover:underline">
+                <Link
+                  href={`/physicians/${p.id}`}
+                  className="font-medium hover:underline"
+                  {...(openInNewTab
+                    ? { target: "_blank", rel: "noopener noreferrer" }
+                    : {})}
+                >
                   Dr. {p.first_name} {p.last_name}
                 </Link>
                 <p className="text-xs text-muted-foreground">{p.subspecialty ?? p.specialty}</p>

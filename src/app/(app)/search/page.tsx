@@ -73,7 +73,7 @@ export default function SearchPage() {
               onPageChange={setPage}
             />
           )}
-          <PhysicianTable physicians={physicians} />
+          <PhysicianTable physicians={physicians} openInNewTab />
           {total > 0 && (
             <Pagination
               page={page}

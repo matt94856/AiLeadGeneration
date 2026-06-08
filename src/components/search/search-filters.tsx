@@ -87,6 +87,22 @@ export function SearchFilters({ filters, onChange, onSearch }: Props) {
           <input
             type="checkbox"
             className="rounded border"
+            checked={filters.status === "researching"}
+            onChange={(e) =>
+              onChange({
+                ...filters,
+                status: e.target.checked ? "researching" : undefined,
+              })
+            }
+          />
+          Researching only
+        </label>
+      </div>
+      <div className="flex items-end">
+        <label className="flex items-center gap-2 text-sm cursor-pointer pb-2">
+          <input
+            type="checkbox"
+            className="rounded border"
             checked={filters.hasEmail === true}
             onChange={(e) =>
               onChange({ ...filters, hasEmail: e.target.checked ? true : undefined })
