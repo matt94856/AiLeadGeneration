@@ -3,6 +3,7 @@ import { getContainer } from "@/services/container";
 import { GmailSmtpService } from "@/services/email/gmail.service";
 import { jsonOk, jsonError, handleApiError } from "@/lib/api-response";
 import { getRecruiterProfile } from "@/lib/recruiter-profile";
+import { validateEmailDomain, validationMessage } from "@/lib/email-validation";
 
 /**
  * Approve email draft and send from configured Gmail (GMAIL_USER).
@@ -58,6 +59,34 @@ export async function POST(
     if (!toEmail) {
       return jsonError(
         "No email on file for this physician. Add their email on the profile, then try again.",
+        400
+      );
+    }
+
+    const emailCheck = await validateEmailDomain(toEmail);
+    if (!emailCheck.valid) {
+      await container.physicians.update(draft.physician_id, {
+        research_metadata: {
+          ...(physician.research_metadata ?? {}),
+          email_validation: {
+            valid: false,
+            reason: emailCheck.reason,
+            checked_at: new Date().toISOString(),
+          },
+        },
+      });
+      return jsonError(
+        `Cannot send — ${validationMessage(emailCheck)} Update the physician email on their profile.`,
+        400
+      );
+    }
+
+    const enrichment = physician.research_metadata?.email_enrichment as
+      | { confidence?: string; ai_suggested?: boolean }
+      | undefined;
+    if (enrichment?.ai_suggested && enrichment.confidence === "medium") {
+      return jsonError(
+        "This AI-found email is medium confidence only. Verify the address on the physician profile (or find a high-confidence listing) before sending to protect sender reputation.",
         400
       );
     }

@@ -13,6 +13,7 @@ import type { PhysicianRepository } from "@/repositories/physician.repository";
 import type { Physician } from "@/types";
 import type { EmailEnrichmentResult } from "@/services/enrichment/types";
 import { fetchPages } from "@/services/enrichment/page-fetch.service";
+import { validateEmailDomain } from "@/lib/email-validation";
 
 export interface EnrichBatchOptions {
   limit?: number;
@@ -189,11 +190,41 @@ export class EmailEnrichmentService {
         extraction.confidence !== "none" &&
         extraction.confidence !== "low"
       ) {
+        const domainCheck = await validateEmailDomain(extraction.email);
+        if (!domainCheck.valid) {
+          await this.physicians.update(physician.id, {
+            research_metadata: {
+              ...(physician.research_metadata ?? {}),
+              email_enrichment: {
+                ...enrichmentMeta,
+                ai_suggested: false,
+                rejected_reason: domainCheck.reason,
+                evidence: `Rejected: domain failed mail DNS check (${domainCheck.reason})`,
+              },
+            },
+          });
+
+          return {
+            physician_id: physician.id,
+            email: null,
+            confidence: extraction.confidence,
+            source_url: extraction.source_url,
+            evidence: `Domain invalid: ${domainCheck.reason}`,
+            search_query: searchQuery,
+            status: "not_found",
+          };
+        }
+
         await this.physicians.update(physician.id, {
           email: extraction.email,
           research_metadata: {
             ...(physician.research_metadata ?? {}),
             email_enrichment: { ...enrichmentMeta, ai_suggested: true },
+            email_validation: {
+              valid: true,
+              domain: domainCheck.domain,
+              checked_at: new Date().toISOString(),
+            },
           },
         });
 
