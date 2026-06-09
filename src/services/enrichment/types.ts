@@ -30,3 +30,20 @@ export interface EmailExtractionOutput {
   source_url: string | null;
   evidence: string | null;
 }
+
+export interface PublicProfileDiscoveryInput {
+  first_name: string;
+  last_name: string;
+  specialty: string;
+  organization?: string | null;
+  city?: string | null;
+  state?: string | null;
+  npi?: string | null;
+  website?: string | null;
+  hospital_affiliations?: string[];
+}
+
+export interface PublicProfileDiscoveryOutput {
+  urls: string[];
+  reasoning: string | null;
+}

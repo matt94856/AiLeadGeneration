@@ -7,7 +7,7 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "*/30 * * * *"
+              "expression": "0,30 * * * *"
             }
           ]
         }
@@ -18,7 +18,7 @@
       "typeVersion": 1.2,
       "position": [0, 0],
       "notesInFlow": true,
-      "notes": "Scores unscored leads in chunks until all physicians have a lead_score."
+      "notes": "Runs at :00 and :30. Email enrichment runs at :15/:45 — staggered to avoid Vercel 60s timeout collisions."
     },
     {
       "parameters": {

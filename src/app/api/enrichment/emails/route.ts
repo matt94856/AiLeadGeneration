@@ -54,9 +54,9 @@ export async function POST(request: Request) {
       serper_configured: Boolean(process.env.SERPER_API_KEY),
       hint: process.env.SERPER_API_KEY
         ? result.continuation_queued
-          ? "More email lookups continue when you re-run or via n8n every-30-min schedule."
+          ? "More email lookups continue when you re-run or via n8n schedule."
           : undefined
-        : "Add SERPER_API_KEY (free at serper.dev) for much better email discovery from public web results.",
+        : "Serper optional — when credits run out, OpenAI browses public hospital/university directories automatically.",
     });
   } catch (error) {
     return handleApiError(error, "POST /api/enrichment/emails");

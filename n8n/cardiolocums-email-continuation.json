@@ -7,18 +7,18 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "*/30 * * * *"
+              "expression": "15,45 * * * *"
             }
           ]
         }
       },
-      "id": "schedule-every-30min",
-      "name": "Every 30 minutes",
+      "id": "schedule-email-15-45",
+      "name": "Every 15 and 45 past",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [0, 0],
       "notesInFlow": true,
-      "notes": "Hobby Vercel cannot run cron more than once/day — n8n continues email enrichment instead."
+      "notes": "Runs at :15 and :45 each hour (staggered from scoring at :00/:30). Hobby Vercel cannot run app crons more than once/day — n8n handles continuation."
     },
     {
       "parameters": {
@@ -51,11 +51,11 @@
       "typeVersion": 4.2,
       "position": [280, 0],
       "notesInFlow": true,
-      "notes": "Returns instantly; app processes 4 leads in background per call."
+      "notes": "Returns instantly; app processes 4 leads in background per call. No overlap with scoring at :00/:30."
     }
   ],
   "connections": {
-    "Every 30 minutes": {
+    "Every 15 and 45 past": {
       "main": [
         [
           {

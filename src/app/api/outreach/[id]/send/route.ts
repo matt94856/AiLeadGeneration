@@ -3,7 +3,12 @@ import { getContainer } from "@/services/container";
 import { GmailSmtpService } from "@/services/email/gmail.service";
 import { jsonOk, jsonError, handleApiError } from "@/lib/api-response";
 import { getRecruiterProfile } from "@/lib/recruiter-profile";
-import { validateEmailDomain, validationMessage } from "@/lib/email-validation";
+import { isGenericInboxEmail, normalizeScrapedEmail } from "@/lib/email-extract";
+import {
+  isPhysicianDirectEmail,
+  validateEmailDomain,
+  validationMessage,
+} from "@/lib/email-validation";
 
 /**
  * Approve email draft and send from configured Gmail (GMAIL_USER).
@@ -55,10 +60,19 @@ export async function POST(
     const physician = await container.physicians.findById(draft.physician_id);
     if (!physician) return jsonError("Physician not found", 404);
 
-    const toEmail = physician.email?.trim();
+    const toEmail = physician.email?.trim()
+      ? normalizeScrapedEmail(physician.email.trim())
+      : undefined;
     if (!toEmail) {
       return jsonError(
         "No email on file for this physician. Add their email on the profile, then try again.",
+        400
+      );
+    }
+
+    if (isGenericInboxEmail(toEmail)) {
+      return jsonError(
+        "Cannot send — this looks like a shared inbox (info@, contact@, etc.), not the physician's direct email. Update their profile with a personal work address.",
         400
       );
     }
@@ -82,11 +96,24 @@ export async function POST(
     }
 
     const enrichment = physician.research_metadata?.email_enrichment as
-      | { confidence?: string; ai_suggested?: boolean }
+      | { confidence?: string; ai_suggested?: boolean; verified_in_sources?: boolean }
       | undefined;
-    if (enrichment?.ai_suggested && enrichment.confidence === "medium") {
+    if (
+      enrichment?.ai_suggested &&
+      (enrichment.confidence !== "high" || !enrichment.verified_in_sources)
+    ) {
       return jsonError(
-        "This AI-found email is medium confidence only. Verify the address on the physician profile (or find a high-confidence listing) before sending to protect sender reputation.",
+        "This email was AI-enriched but not verified at high confidence. Confirm the address manually on the physician profile before sending.",
+        400
+      );
+    }
+
+    if (
+      enrichment?.ai_suggested &&
+      !isPhysicianDirectEmail(toEmail, physician.first_name, physician.last_name)
+    ) {
+      return jsonError(
+        "This AI-found email does not look like the physician's direct inbox (shared/department address or name mismatch). Update their profile with a personal work email.",
         400
       );
     }

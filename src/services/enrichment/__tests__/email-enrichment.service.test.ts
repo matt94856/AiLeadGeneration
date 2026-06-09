@@ -2,6 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { EmailEnrichmentService } from "@/services/enrichment/email-enrichment.service";
 import type { Physician } from "@/types";
 
+vi.mock("@/lib/email-validation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/email-validation")>();
+  return {
+    ...actual,
+    validateEmailDomain: vi.fn(async () => ({ valid: true, domain: "bayheart.org" })),
+  };
+});
+
 const physician: Physician = {
   id: "p1",
   npi: "123",
@@ -32,9 +40,17 @@ const physician: Physician = {
 describe("EmailEnrichmentService", () => {
   const openai = {
     extractProfessionalEmail: vi.fn(),
+    discoverPublicProfileUrls: vi.fn(async () => ({ urls: [], reasoning: null })),
+    searchPublicDatabasesForEmail: vi.fn(async () => ({
+      email: null,
+      confidence: "none",
+      source_url: null,
+      evidence: null,
+    })),
   };
   const serper = {
     isConfigured: vi.fn(() => true),
+    isCreditsExhausted: vi.fn(() => false),
     search: vi.fn(async () => ({
       organic: [
         {
@@ -56,6 +72,7 @@ describe("EmailEnrichmentService", () => {
     update: vi.fn(async () => physician),
     listMissingEmail: vi.fn(),
     findById: vi.fn(),
+    findOtherByEmail: vi.fn(async () => null),
     getResearch: vi.fn(async () => ({
       current_employer: "Bay Heart",
       hospital_affiliations: ["Regional Medical Center"],
@@ -100,5 +117,40 @@ describe("EmailEnrichmentService", () => {
     expect(result.status).toBe("found");
     expect(result.email).toBe("jane.doe@bayheart.org");
     expect(physicians.update).toHaveBeenCalled();
+  });
+
+  it("uses site-scoped Serper queries for employer domain", () => {
+    const service = new EmailEnrichmentService(
+      physicians as never,
+      openai as never,
+      serper as never
+    );
+    const queries = service.buildSiteScopedSerperQueries(physician, {
+      current_employer: "Bay Heart",
+      hospital_affiliations: [],
+    });
+    expect(queries.some((q) => q.startsWith("site:bayheart.org"))).toBe(true);
+    expect(queries.some((q) => q.includes('"Jane Doe"'))).toBe(true);
+  });
+
+  it("skips Serper when free sources already find a valid email", async () => {
+    const withWebsite = { ...physician, website: "https://bayheart.org/team/jane-doe" };
+    openai.extractProfessionalEmail.mockResolvedValue({
+      email: null,
+      confidence: "none",
+      source_url: null,
+      evidence: null,
+    });
+
+    const service = new EmailEnrichmentService(
+      physicians as never,
+      openai as never,
+      serper as never
+    );
+    const result = await service.enrichPhysician(withWebsite);
+    expect(result.status).toBe("found");
+    expect(result.email).toBe("jane.doe@bayheart.org");
+    expect(serper.searchMany).not.toHaveBeenCalled();
+    expect(openai.extractProfessionalEmail).not.toHaveBeenCalled();
   });
 });

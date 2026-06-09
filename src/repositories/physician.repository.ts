@@ -22,6 +22,23 @@ export class PhysicianRepository {
     return data as Physician;
   }
 
+  /** Another physician already has this email — likely a shared inbox. */
+  async findOtherByEmail(email: string, excludeId: string): Promise<Physician | null> {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized) return null;
+
+    const { data, error } = await this.supabase
+      .from("physicians")
+      .select("*")
+      .ilike("email", normalized)
+      .neq("id", excludeId)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) return null;
+    return (data as Physician) ?? null;
+  }
+
   async search(filters: PhysicianFilters): Promise<{ data: Physician[]; total: number }> {
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;

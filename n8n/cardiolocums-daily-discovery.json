@@ -77,7 +77,7 @@
       "typeVersion": 4.2,
       "position": [560, 0],
       "notesInFlow": true,
-      "notes": "Kicks off first scoring chunk; use cardiolocums-scoring-continuation.json for every-30-min follow-up."
+      "notes": "Kicks off first scoring chunk; cardiolocums-scoring-continuation.json continues at :00 and :30 each hour."
     },
     {
       "parameters": {
@@ -110,7 +110,7 @@
       "typeVersion": 4.2,
       "position": [840, 0],
       "notesInFlow": true,
-      "notes": "Returns immediately; app processes 4 per background chunk and auto-continues until done."
+      "notes": "Kicks off first email chunk (4 leads). cardiolocums-email-continuation.json continues at :15 and :45 each hour."
     }
   ],
   "connections": {
