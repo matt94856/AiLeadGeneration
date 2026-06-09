@@ -153,12 +153,17 @@ export function inferEmployerDomains(organizations: string[]): string[] {
     const tokens = tokenizeOrg(org);
     if (tokens.length >= 2) {
       const compact = tokens.join("");
+      const first = tokens[0];
+      const last = tokens[tokens.length - 1];
       if (compact.length >= 4) {
         domains.push(`${compact}.org`, `${compact}.com`);
-        domains.push(`${tokens[0]}${tokens[tokens.length - 1]}.org`);
+        if (first && last) domains.push(`${first}${last}.org`);
       }
-    } else if (tokens.length === 1 && tokens[0].length >= 4) {
-      domains.push(`${tokens[0]}.org`, `${tokens[0]}.com`);
+    } else if (tokens.length === 1) {
+      const token = tokens[0];
+      if (token && token.length >= 4) {
+        domains.push(`${token}.org`, `${token}.com`);
+      }
     }
   }
 
