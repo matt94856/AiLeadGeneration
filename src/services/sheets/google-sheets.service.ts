@@ -8,6 +8,7 @@ const SHEET_HEADERS = [
   "Last Name",
   "Full Name",
   "Phone",
+  "Lead Score",
   "NPI",
   "City",
   "State",
@@ -22,6 +23,7 @@ export interface PhysicianPhoneRow {
   last_name: string;
   full_name: string;
   phone: string;
+  lead_score: number;
   npi: string;
   city: string;
   state: string;
@@ -100,6 +102,7 @@ export class GoogleSheetsService {
       last_name: physician.last_name,
       full_name: `Dr. ${physician.first_name} ${physician.last_name}`,
       phone: physician.phone ?? "",
+      lead_score: physician.lead_score,
       npi: physician.npi ?? "",
       city: physician.city ?? "",
       state: physician.state ?? "",
@@ -116,6 +119,7 @@ export class GoogleSheetsService {
       row.last_name,
       row.full_name,
       row.phone,
+      String(row.lead_score),
       row.npi,
       row.city,
       row.state,
@@ -130,7 +134,7 @@ export class GoogleSheetsService {
     if (!this.spreadsheetId) return;
 
     const token = await this.getAccessToken();
-    const range = encodeURIComponent(`${this.sheetName}!A1:K1`);
+    const range = encodeURIComponent(`${this.sheetName}!A1:L1`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${this.spreadsheetId}/values/${range}`;
 
     const existing = await fetch(url, {
@@ -151,7 +155,7 @@ export class GoogleSheetsService {
     }
 
     const token = await this.getAccessToken();
-    const range = encodeURIComponent(`${this.sheetName}!A:K`);
+    const range = encodeURIComponent(`${this.sheetName}!A:L`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${this.spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
 
     const response = await fetch(url, {

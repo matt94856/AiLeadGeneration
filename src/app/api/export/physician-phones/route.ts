@@ -35,6 +35,7 @@ export async function GET(request: Request) {
         last_name: p.last_name,
         full_name: `Dr. ${p.first_name} ${p.last_name}`,
         phone: p.phone,
+        lead_score: p.lead_score,
         npi: p.npi,
         city: p.city,
         state: p.state,
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
         ...rows.map((row) =>
           headers
             .map((h) => {
-              const value = String((row as Record<string, string | null>)[h] ?? "");
+              const value = String((row as Record<string, string | number | null>)[h] ?? "");
               return `"${value.replace(/"/g, '""')}"`;
             })
             .join(",")
