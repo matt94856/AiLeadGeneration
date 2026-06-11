@@ -1,5 +1,6 @@
 import { createSign } from "crypto";
 import { logger } from "@/lib/logger";
+import { phoneDigits } from "@/lib/phone-extract";
 import type { PhysicianRepository } from "@/repositories/physician.repository";
 import type { Physician } from "@/types";
 
@@ -31,6 +32,14 @@ export interface PhysicianPhoneRow {
   confidence: string;
   source_url: string;
   updated_at: string;
+}
+
+interface SheetColumnMap {
+  firstName: number;
+  lastName: number;
+  phone: number;
+  leadScore: number;
+  npi: number;
 }
 
 function base64Url(input: string | Buffer): string {
@@ -147,6 +156,196 @@ export class GoogleSheetsService {
     }
 
     await this.appendRows([SHEET_HEADERS]);
+  }
+
+  private async readSheetValues(range: string): Promise<string[][]> {
+    if (!this.spreadsheetId) return [];
+
+    const token = await this.getAccessToken();
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${this.spreadsheetId}/values/${encodeURIComponent(range)}`;
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) return [];
+
+    const data = (await response.json()) as { values?: string[][] };
+    return data.values ?? [];
+  }
+
+  private resolveColumnMap(headerRow: string[]): SheetColumnMap {
+    const headers = headerRow.map((h) => h.trim().toLowerCase());
+    const indexOf = (...labels: string[]) => {
+      for (const label of labels) {
+        const idx = headers.indexOf(label);
+        if (idx >= 0) return idx;
+      }
+      return -1;
+    };
+
+    const firstName = indexOf("first name");
+    const lastName = indexOf("last name");
+    const phone = indexOf("phone");
+    let leadScore = indexOf("lead score");
+    let npi = indexOf("npi");
+
+    if (leadScore < 0) leadScore = 4;
+    if (npi < 0) npi = leadScore === 4 ? 5 : 4;
+
+    return {
+      firstName: firstName >= 0 ? firstName : 0,
+      lastName: lastName >= 0 ? lastName : 1,
+      phone: phone >= 0 ? phone : 3,
+      leadScore,
+      npi,
+    };
+  }
+
+  private columnLetter(index: number): string {
+    let n = index;
+    let letters = "";
+    do {
+      letters = String.fromCharCode((n % 26) + 65) + letters;
+      n = Math.floor(n / 26) - 1;
+    } while (n >= 0);
+    return letters;
+  }
+
+  private async batchUpdateRanges(updates: { range: string; values: string[][] }[]): Promise<void> {
+    if (!this.spreadsheetId || updates.length === 0) return;
+
+    const token = await this.getAccessToken();
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${this.spreadsheetId}/values:batchUpdate`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        valueInputOption: "USER_ENTERED",
+        data: updates,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Google Sheets batch update failed: ${response.status} ${body.slice(0, 300)}`);
+    }
+  }
+
+  private buildPhysicianLookup(physicians: Physician[]): {
+    byNpi: Map<string, Physician>;
+    byPhone: Map<string, Physician>;
+    byName: Map<string, Physician>;
+  } {
+    const byNpi = new Map<string, Physician>();
+    const byPhone = new Map<string, Physician>();
+    const byName = new Map<string, Physician>();
+
+    for (const physician of physicians) {
+      if (physician.npi) byNpi.set(physician.npi.replace(/\D/g, ""), physician);
+      if (physician.phone) byPhone.set(phoneDigits(physician.phone), physician);
+      const nameKey = `${physician.first_name} ${physician.last_name}`
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+      byName.set(nameKey, physician);
+    }
+
+    return { byNpi, byPhone, byName };
+  }
+
+  private matchPhysician(
+    row: string[],
+    columns: SheetColumnMap,
+    lookup: ReturnType<GoogleSheetsService["buildPhysicianLookup"]>
+  ): Physician | null {
+    const npi = (row[columns.npi] ?? "").replace(/\D/g, "");
+    if (npi.length === 10) {
+      const hit = lookup.byNpi.get(npi);
+      if (hit) return hit;
+    }
+
+    const phone = row[columns.phone] ?? "";
+    if (phone) {
+      const hit = lookup.byPhone.get(phoneDigits(phone));
+      if (hit) return hit;
+    }
+
+    const first = (row[columns.firstName] ?? "").trim();
+    const last = (row[columns.lastName] ?? "").trim();
+    if (first && last) {
+      const hit = lookup.byName.get(`${first} ${last}`.toLowerCase());
+      if (hit) return hit;
+    }
+
+    return null;
+  }
+
+  /**
+   * Updates Lead Score (column E by default) for rows already in the sheet.
+   * Matches rows to Supabase physicians by NPI, phone, or first+last name.
+   */
+  async backfillLeadScores(physicianRepo: PhysicianRepository): Promise<{
+    total_rows: number;
+    updated: number;
+    unmatched: number;
+  }> {
+    if (!this.isConfigured()) {
+      throw new Error("Google Sheets is not configured");
+    }
+
+    const values = await this.readSheetValues(`${this.sheetName}!A:L`);
+    if (values.length < 2) {
+      return { total_rows: 0, updated: 0, unmatched: 0 };
+    }
+
+    const columns = this.resolveColumnMap(values[0] ?? []);
+    const physicians = await physicianRepo.listWithPhone(5000);
+    const lookup = this.buildPhysicianLookup(physicians);
+
+    const scoreColumn = this.columnLetter(columns.leadScore);
+    const updates: { range: string; values: string[][] }[] = [];
+    let updated = 0;
+    let unmatched = 0;
+
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i] ?? [];
+      const physician = this.matchPhysician(row, columns, lookup);
+      const rowNumber = i + 1;
+
+      if (!physician) {
+        unmatched++;
+        continue;
+      }
+
+      const currentScore = (row[columns.leadScore] ?? "").trim();
+      const nextScore = String(physician.lead_score);
+      if (currentScore === nextScore) continue;
+
+      updates.push({
+        range: `${this.sheetName}!${scoreColumn}${rowNumber}`,
+        values: [[nextScore]],
+      });
+      updated++;
+    }
+
+    await this.batchUpdateRanges(updates);
+
+    logger.info("Backfilled lead scores in Google Sheets", {
+      updated,
+      unmatched,
+      total_rows: values.length - 1,
+    });
+
+    return {
+      total_rows: values.length - 1,
+      updated,
+      unmatched,
+    };
   }
 
   async appendRows(rows: string[][]): Promise<void> {

@@ -31,6 +31,7 @@ export const maxDuration = 60;
  * - enrichment.emails { limit?, today_only?, all_pending? }
  * - enrichment.phones { limit?, today_only?, all_pending?, sync_sheets? }
  * - export.phones.sync { } — append unsynced phones to Google Sheets
+ * - export.phones.backfill_scores { } — update Lead Score column for existing sheet rows
  */
 export async function POST(request: Request) {
   try {
@@ -208,6 +209,28 @@ export async function POST(request: Request) {
         result = {
           status: "started",
           message: "Syncing unsynced physician phones to Google Sheets in background.",
+        };
+        break;
+      }
+      case "export.phones.backfill_scores": {
+        after(async () => {
+          try {
+            resetContainer();
+            const bgSupabase = await createServiceClient();
+            const bgContainer = getContainer(bgSupabase);
+            const backfill = await bgContainer.googleSheets.backfillLeadScores(
+              bgContainer.physicians
+            );
+            logger.info("Background Google Sheets lead score backfill finished", backfill);
+          } catch (error) {
+            logger.error("Background Google Sheets lead score backfill failed", {
+              error: error instanceof Error ? error.message : "unknown",
+            });
+          }
+        });
+        result = {
+          status: "started",
+          message: "Backfilling Lead Score column for existing Google Sheet rows in background.",
         };
         break;
       }

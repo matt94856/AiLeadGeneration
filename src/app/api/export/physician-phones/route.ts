@@ -89,6 +89,15 @@ export async function POST(request: Request) {
       );
     }
 
+    const { searchParams } = new URL(request.url);
+    if (searchParams.get("action") === "backfill-lead-scores") {
+      const result = await container.googleSheets.backfillLeadScores(container.physicians);
+      return jsonOk({
+        ...result,
+        message: `Updated lead scores on ${result.updated} of ${result.total_rows} sheet rows`,
+      });
+    }
+
     const synced = await container.googleSheets.syncUnsyncedPhysicians(container.physicians);
     return jsonOk({ synced, message: `Appended ${synced} rows to Google Sheets` });
   } catch (error) {
