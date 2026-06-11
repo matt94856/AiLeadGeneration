@@ -7,7 +7,11 @@ import type {
   ConferenceRecord,
   SpeakingRecord,
 } from "@/types";
-import { physicianNeedsScoring, physicianNeedsEmail } from "@/lib/scoring-status";
+import {
+  physicianNeedsScoring,
+  physicianNeedsEmail,
+  physicianNeedsPhone,
+} from "@/lib/scoring-status";
 
 export class PhysicianRepository {
   constructor(private readonly supabase: SupabaseClient) {}
@@ -309,6 +313,88 @@ export class PhysicianRepository {
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  async listNeedsPhoneEnrichment(
+    limit = 25,
+    discoveredSince?: string,
+    options?: { overwrite?: boolean }
+  ): Promise<Physician[]> {
+    let query = this.supabase.from("physicians").select("*");
+
+    if (!options?.overwrite) {
+      query = query.filter("research_metadata->phone_enrichment->>enriched_at", "is", null);
+    }
+
+    if (discoveredSince) {
+      query = query.gte("created_at", discoveredSince);
+    }
+
+    query = query.order("lead_score", { ascending: false }).limit(limit * 2);
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+
+    return ((data ?? []) as Physician[])
+      .filter((physician) => physicianNeedsPhone(physician, options))
+      .slice(0, limit);
+  }
+
+  async countNeedsPhoneEnrichment(
+    discoveredSince?: string,
+    options?: { overwrite?: boolean }
+  ): Promise<number> {
+    const rows = await this.listNeedsPhoneEnrichment(500, discoveredSince, options);
+    return rows.length;
+  }
+
+  async listWithPhone(limit = 5000): Promise<Physician[]> {
+    const { data, error } = await this.supabase
+      .from("physicians")
+      .select("*")
+      .not("phone", "is", null)
+      .neq("phone", "")
+      .order("last_name", { ascending: true })
+      .limit(limit);
+
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Physician[];
+  }
+
+  async listUnsyncedPhoneSheetRows(limit = 200): Promise<Physician[]> {
+    const { data, error } = await this.supabase
+      .from("physicians")
+      .select("*")
+      .not("phone", "is", null)
+      .neq("phone", "")
+      .order("updated_at", { ascending: false })
+      .limit(limit * 3);
+
+    if (error) throw new Error(error.message);
+
+    return ((data ?? []) as Physician[]).filter((physician) => {
+      const meta = physician.research_metadata?.phone_enrichment as
+        | { sheet_synced_at?: string; sheet_synced_phone?: string }
+        | undefined;
+      if (!meta?.sheet_synced_at) return true;
+      return meta.sheet_synced_phone !== physician.phone;
+    }).slice(0, limit);
+  }
+
+  async markPhoneSheetSynced(physicianId: string, phone: string, syncedAt: string) {
+    const physician = await this.findById(physicianId);
+    if (!physician) return;
+
+    await this.update(physicianId, {
+      research_metadata: {
+        ...(physician.research_metadata ?? {}),
+        phone_enrichment: {
+          ...((physician.research_metadata?.phone_enrichment as object) ?? {}),
+          sheet_synced_at: syncedAt,
+          sheet_synced_phone: phone,
+        },
+      },
+    });
   }
 }
 

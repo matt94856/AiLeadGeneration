@@ -1,0 +1,75 @@
+{
+  "name": "CardioLocums — Sync Phones to Google Sheet",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-daily-7am",
+      "name": "Every day 7 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "notesInFlow": true,
+      "notes": "Daily backup sync — appends any physician phones not yet in Google Sheets."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ai-lead-generation-pink.vercel.app/api/webhooks/n8n",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-webhook-secret",
+              "value": "YOUR_WEBHOOK_SECRET"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"event\": \"export.phones.sync\",\n  \"data\": {}\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "http-sheets-sync",
+      "name": "Sync to Google Sheets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, 0]
+    }
+  ],
+  "connections": {
+    "Every day 7 AM": {
+      "main": [
+        [
+          {
+            "node": "Sync to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {}
+}

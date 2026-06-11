@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { LeadScoreBadge } from "@/components/physicians/lead-score-badge";
-import { hasAiFoundEmail } from "@/lib/scoring-status";
+import { hasAiFoundEmail, hasProfileListedPhone } from "@/lib/scoring-status";
 import type { Physician } from "@/types";
 
 export function PhysicianTable({
@@ -23,7 +23,7 @@ export function PhysicianTable({
             <th className="p-3 font-medium">Name</th>
             <th className="p-3 font-medium hidden sm:table-cell">Location</th>
             <th className="p-3 font-medium hidden md:table-cell">Organization</th>
-            <th className="p-3 font-medium hidden sm:table-cell">Email</th>
+            <th className="p-3 font-medium hidden sm:table-cell">Contact</th>
             <th className="p-3 font-medium">Score</th>
             <th className="p-3 font-medium hidden lg:table-cell">Status</th>
           </tr>
@@ -50,18 +50,28 @@ export function PhysicianTable({
                 {p.organization ?? "—"}
               </td>
               <td className="p-3 hidden sm:table-cell text-muted-foreground">
-                {p.email ? (
-                  <span className="flex flex-col gap-1">
+                <span className="flex flex-col gap-1">
+                  {p.email ? (
                     <span className="truncate max-w-[180px]">{p.email}</span>
+                  ) : (
+                    <span className="text-xs">No email</span>
+                  )}
+                  {p.phone ? (
+                    <span className="truncate max-w-[180px] text-foreground">{p.phone}</span>
+                  ) : null}
+                  <span className="flex flex-wrap gap-1">
                     {hasAiFoundEmail(p) && (
                       <Badge variant="outline" className="w-fit text-[10px]">
-                        AI found
+                        AI email
+                      </Badge>
+                    )}
+                    {hasProfileListedPhone(p) && (
+                      <Badge variant="outline" className="w-fit text-[10px]">
+                        Profile phone
                       </Badge>
                     )}
                   </span>
-                ) : (
-                  "—"
-                )}
+                </span>
               </td>
               <td className="p-3">
                 <LeadScoreBadge physician={p} />

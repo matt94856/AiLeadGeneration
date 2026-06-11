@@ -22,6 +22,8 @@ import { DiscoveryProgressRepository } from "@/repositories/discovery-progress.r
 import { ResearchService } from "@/services/research/research.service";
 import { SerperService } from "@/services/serper/serper.service";
 import { EmailEnrichmentService } from "@/services/enrichment/email-enrichment.service";
+import { PhoneEnrichmentService } from "@/services/enrichment/phone-enrichment.service";
+import { GoogleSheetsService } from "@/services/sheets/google-sheets.service";
 
 export interface ServiceContainer {
   physicians: PhysicianRepository;
@@ -33,6 +35,8 @@ export interface ServiceContainer {
   usGrowthDiscovery: UsGrowthDiscoveryService;
   research: ResearchService;
   emailEnrichment: EmailEnrichmentService;
+  phoneEnrichment: PhoneEnrichmentService;
+  googleSheets: GoogleSheetsService;
   openai: IOpenAIService;
   npi: NpiService;
   cms: CmsService;
@@ -60,6 +64,7 @@ export function createContainer(supabase: SupabaseClient): ServiceContainer {
   const dashboard = new DashboardRepository(supabase);
   const serper = new SerperService();
   const discoveryProgress = new DiscoveryProgressRepository(supabase);
+  const googleSheets = new GoogleSheetsService();
 
   return {
     physicians,
@@ -71,6 +76,8 @@ export function createContainer(supabase: SupabaseClient): ServiceContainer {
     usGrowthDiscovery: new UsGrowthDiscoveryService(npi, physicians, discoveryProgress),
     research: new ResearchService(physicians, scoring, openai),
     emailEnrichment: new EmailEnrichmentService(physicians, openai, serper),
+    phoneEnrichment: new PhoneEnrichmentService(physicians, googleSheets),
+    googleSheets,
     openai,
     npi,
     cms,

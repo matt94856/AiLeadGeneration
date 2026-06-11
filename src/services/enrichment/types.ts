@@ -47,3 +47,15 @@ export interface PublicProfileDiscoveryOutput {
   urls: string[];
   reasoning: string | null;
 }
+
+export type PhoneConfidence = "profile_listed" | "practice" | "none";
+
+export interface PhoneEnrichmentResult {
+  physician_id: string;
+  phone: string | null;
+  confidence: PhoneConfidence;
+  source_url: string | null;
+  evidence: string | null;
+  status: "found" | "practice_only" | "not_found" | "skipped_already_enriched" | "error";
+  error?: string;
+}

@@ -109,10 +109,20 @@ function loadEnvEmployerDomains(): Record<string, string> {
   }
 }
 
+const INVALID_ORG_NAMES = new Set([
+  "unknown",
+  "n/a",
+  "na",
+  "none",
+  "null",
+  "not available",
+  "unspecified",
+]);
+
 /** Resolve a likely primary domain for a hospital, university, or practice name. */
 export function resolveEmployerDomain(organization: string): string | null {
   const key = normalizeOrgKey(organization);
-  if (!key) return null;
+  if (!key || INVALID_ORG_NAMES.has(key)) return null;
 
   const envMap = loadEnvEmployerDomains();
   if (envMap[key]) return envMap[key];

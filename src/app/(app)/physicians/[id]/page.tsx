@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ActivityTimeline } from "@/components/physicians/activity-timeline";
 import { OutreachPanel } from "@/components/physicians/outreach-panel";
 import { PhysicianEmailField } from "@/components/physicians/physician-email-field";
+import { PhysicianContactInfo } from "@/components/physicians/physician-contact-info";
 import { LeadScoreBadge } from "@/components/physicians/lead-score-badge";
 import { hasAiFoundEmail, isScoringPending } from "@/lib/scoring-status";
 import type { Physician, Activity, OutreachDraft } from "@/types";
@@ -62,6 +63,15 @@ export default function PhysicianDetailPage() {
     }
   }
 
+  async function findPhoneWithAi() {
+    const res = await fetch(`/api/enrichment/phones/${id}`, { method: "POST" });
+    const json = await res.json();
+    await load();
+    if (!json.success) {
+      alert(json.error?.message ?? "Could not find phone");
+    }
+  }
+
   async function generateOutreach(channel: "email" | "linkedin" | "voicemail") {
     await fetch("/api/outreach", {
       method: "POST",
@@ -108,6 +118,9 @@ export default function PhysicianDetailPage() {
         <Button variant="outline" onClick={findEmailWithAi}>
           AI find email
         </Button>
+        <Button variant="outline" onClick={findPhoneWithAi}>
+          Find phone
+        </Button>
         <Button variant="outline" onClick={generateFollowUp}>
           Generate Follow-up
         </Button>
@@ -123,23 +136,7 @@ export default function PhysicianDetailPage() {
             <p><span className="text-muted-foreground">Organization:</span> {physician.organization ?? "—"}</p>
             <p><span className="text-muted-foreground">Years in practice:</span> {physician.years_in_practice ?? "—"}</p>
             <p><span className="text-muted-foreground">Source:</span> {physician.source ?? "—"}</p>
-            <p className="flex flex-wrap items-center gap-2">
-              <span className="text-muted-foreground">Email:</span>
-              {physician.email ? (
-                <>
-                  <a href={`mailto:${physician.email}`} className="text-primary hover:underline">
-                    {physician.email}
-                  </a>
-                  {hasAiFoundEmail(physician) && (
-                    <Badge variant="outline" className="text-[10px]">
-                      AI found
-                    </Badge>
-                  )}
-                </>
-              ) : (
-                "—"
-              )}
-            </p>
+            <PhysicianContactInfo physician={physician} />
             {physician.physician_summary && (
               <p className="mt-4 text-muted-foreground leading-relaxed">{physician.physician_summary}</p>
             )}

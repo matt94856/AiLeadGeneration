@@ -55,3 +55,26 @@ export function hasAiFoundEmail(physician: Physician): boolean {
     | undefined;
   return Boolean(meta?.ai_suggested && physician.email?.trim());
 }
+
+export function physicianNeedsPhone(
+  physician: Physician,
+  options?: { overwrite?: boolean }
+): boolean {
+  if (options?.overwrite) return true;
+
+  const enrichment = physician.research_metadata?.phone_enrichment as
+    | { enriched_at?: string }
+    | undefined;
+  return !enrichment?.enriched_at;
+}
+
+export function getPhoneConfidence(physician: Physician): string | null {
+  const meta = physician.research_metadata?.phone_enrichment as
+    | { confidence?: string }
+    | undefined;
+  return meta?.confidence ?? (physician.phone ? "practice" : null);
+}
+
+export function hasProfileListedPhone(physician: Physician): boolean {
+  return getPhoneConfidence(physician) === "profile_listed" && Boolean(physician.phone?.trim());
+}

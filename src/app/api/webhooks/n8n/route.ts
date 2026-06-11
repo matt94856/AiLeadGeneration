@@ -8,9 +8,11 @@ import {
   buildResearchBatchPayload,
   runResearchWebhookBatchSingle,
   runEmailWebhookBatchSingle,
+  runPhoneWebhookBatchSingle,
+  buildPhoneBatchPayload,
 } from "@/lib/webhook-batch";
 import type { WebhookBatchData } from "@/lib/batch-options";
-import { resolveChunkLimit, resolveEmailChunkLimit } from "@/lib/batch-options";
+import { resolveChunkLimit, resolveEmailChunkLimit, resolvePhoneChunkLimit } from "@/lib/batch-options";
 import { after } from "next/server";
 
 export const maxDuration = 60;
@@ -27,6 +29,8 @@ export const maxDuration = 60;
  * - research.run { physician_id }
  * - physician.status { physician_id, status }
  * - enrichment.emails { limit?, today_only?, all_pending? }
+ * - enrichment.phones { limit?, today_only?, all_pending?, sync_sheets? }
+ * - export.phones.sync { } — append unsynced phones to Google Sheets
  */
 export async function POST(request: Request) {
   try {
@@ -152,6 +156,58 @@ export async function POST(request: Request) {
           chunk_limit: resolveEmailChunkLimit(payload),
           continuation: "auto",
           message: "Email enrichment runs in background; n8n every-30-min workflow continues until complete.",
+        };
+        break;
+      }
+      case "enrichment.phones": {
+        const payload = buildPhoneBatchPayload(data);
+        after(async () => {
+          try {
+            resetContainer();
+            const bgSupabase = await createServiceClient();
+            const bgContainer = getContainer(bgSupabase);
+            const batchResult = await runPhoneWebhookBatchSingle(bgContainer, data);
+            logger.info("Background phone enrichment chunk finished", {
+              processed: batchResult.processed,
+              found: batchResult.found,
+              upgraded: batchResult.upgraded,
+              sheets_synced: batchResult.sheets_synced,
+              remaining: batchResult.remaining,
+            });
+          } catch (error) {
+            logger.error("Background phone enrichment failed", {
+              error: error instanceof Error ? error.message : "unknown",
+            });
+          }
+        });
+        result = {
+          status: "started",
+          chunk_limit: resolvePhoneChunkLimit(payload),
+          continuation: "auto",
+          message:
+            "Phone enrichment runs in background; new numbers sync to Google Sheets when configured.",
+        };
+        break;
+      }
+      case "export.phones.sync": {
+        after(async () => {
+          try {
+            resetContainer();
+            const bgSupabase = await createServiceClient();
+            const bgContainer = getContainer(bgSupabase);
+            const synced = await bgContainer.googleSheets.syncUnsyncedPhysicians(
+              bgContainer.physicians
+            );
+            logger.info("Background Google Sheets phone sync finished", { synced });
+          } catch (error) {
+            logger.error("Background Google Sheets phone sync failed", {
+              error: error instanceof Error ? error.message : "unknown",
+            });
+          }
+        });
+        result = {
+          status: "started",
+          message: "Syncing unsynced physician phones to Google Sheets in background.",
         };
         break;
       }

@@ -1,0 +1,75 @@
+{
+  "name": "CardioLocums — Phone Enrichment Continuation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "20,50 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-phone-20-50",
+      "name": "Every 20 and 50 past",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "notesInFlow": true,
+      "notes": "Runs at :20 and :50 (staggered from email at :15/:45). Free profile-page phone scrape; syncs to Google Sheets when configured."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ai-lead-generation-pink.vercel.app/api/webhooks/n8n",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-webhook-secret",
+              "value": "YOUR_WEBHOOK_SECRET"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"event\": \"enrichment.phones\",\n  \"data\": {\n    \"all_pending\": true,\n    \"limit\": 6,\n    \"sync_sheets\": true\n  }\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "http-phone-chunk",
+      "name": "Process phone chunk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, 0]
+    }
+  ],
+  "connections": {
+    "Every 20 and 50 past": {
+      "main": [
+        [
+          {
+            "node": "Process phone chunk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {}
+}

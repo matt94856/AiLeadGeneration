@@ -111,6 +111,39 @@
       "position": [840, 0],
       "notesInFlow": true,
       "notes": "Kicks off first email chunk (4 leads). cardiolocums-email-continuation.json continues at :15 and :45 each hour."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ai-lead-generation-pink.vercel.app/api/webhooks/n8n",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-webhook-secret",
+              "value": "YOUR_WEBHOOK_SECRET"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"event\": \"enrichment.phones\",\n  \"data\": {\n    \"all_pending\": true,\n    \"limit\": 6,\n    \"sync_sheets\": true\n  }\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "http-phone-enrichment",
+      "name": "Find phones",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 0],
+      "notesInFlow": true,
+      "notes": "Kicks off first phone chunk. cardiolocums-phone-continuation.json continues at :20 and :50 each hour."
     }
   ],
   "connections": {
@@ -141,6 +174,17 @@
         [
           {
             "node": "AI find emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI find emails": {
+      "main": [
+        [
+          {
+            "node": "Find phones",
             "type": "main",
             "index": 0
           }

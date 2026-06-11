@@ -4,6 +4,7 @@ import { getContinuationDepth } from "@/lib/webhook-continuation";
 import {
   resolveChunkLimit,
   resolveEmailChunkLimit,
+  resolvePhoneChunkLimit,
   resolveDiscoveredSince,
   type WebhookBatchData,
 } from "@/lib/batch-options";
@@ -24,6 +25,17 @@ export function buildEmailBatchPayload(data: WebhookBatchData): WebhookBatchData
     today_only: data.today_only,
     all_pending: data.all_pending ?? !data.today_only,
     overwrite: data.overwrite,
+    _continuation_depth: data._continuation_depth ?? 0,
+  };
+}
+
+export function buildPhoneBatchPayload(data: WebhookBatchData): WebhookBatchData {
+  return {
+    limit: resolvePhoneChunkLimit(data),
+    today_only: data.today_only,
+    all_pending: data.all_pending ?? !data.today_only,
+    overwrite: data.overwrite,
+    sync_sheets: data.sync_sheets ?? true,
     _continuation_depth: data._continuation_depth ?? 0,
   };
 }
@@ -58,6 +70,21 @@ export async function runEmailWebhookBatchSingle(
   return { ...result, continuation_queued: false };
 }
 
+export async function runPhoneWebhookBatchSingle(
+  container: ServiceContainer,
+  data: WebhookBatchData
+) {
+  const payload = buildPhoneBatchPayload(data);
+  const result = await container.phoneEnrichment.enrichBatch({
+    limit: resolvePhoneChunkLimit(payload),
+    discoveredSince: resolveDiscoveredSince(payload),
+    overwrite: Boolean(payload.overwrite),
+    syncSheets: payload.sync_sheets !== false,
+  });
+
+  return { ...result, continuation_queued: false };
+}
+
 interface BatchLoopOptions {
   maxMs?: number;
 }
@@ -79,6 +106,35 @@ export async function runResearchWebhookBatch(
 
     currentData = { ...currentData, _continuation_depth: depth };
     lastResult = await runResearchWebhookBatchSingle(container, currentData);
+    chunks++;
+  }
+
+  return {
+    ...lastResult,
+    chunks_run: chunks,
+    completed: !lastResult.has_more,
+    cron_will_continue: lastResult.has_more,
+    continuation_queued: lastResult.has_more,
+  };
+}
+
+export async function runPhoneWebhookBatch(
+  container: ServiceContainer,
+  data: WebhookBatchData,
+  options?: BatchLoopOptions
+) {
+  const maxMs = options?.maxMs ?? BATCH_TIME_BUDGET_MS;
+  const start = Date.now();
+  let currentData = buildPhoneBatchPayload(data);
+  let lastResult = await runPhoneWebhookBatchSingle(container, currentData);
+  let chunks = 1;
+
+  while (lastResult.has_more && Date.now() - start < maxMs) {
+    const depth = getContinuationDepth(currentData) + 1;
+    if (depth >= MAX_CONTINUATION_DEPTH) break;
+
+    currentData = { ...currentData, _continuation_depth: depth };
+    lastResult = await runPhoneWebhookBatchSingle(container, currentData);
     chunks++;
   }
 
